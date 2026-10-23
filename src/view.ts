@@ -127,7 +127,7 @@ export const RULE_SHORT: Record<string, string> = {
   SEC033: "no lockfile", SEC034: "webhook idempotency", SEC035: "prompt injection", SEC036: "LLM output sink",
   SEC037: "long-lived token", SEC038: "RLS without policies", SEC039: "no tenant key",
   SEC044: "no login check", SEC045: "IDOR", SEC046: "mass assignment", SEC047: "owner from request",
-  SEC048: "traced injection", SEC049: "traced SSRF/redirect",
+  SEC048: "traced injection", SEC049: "traced SSRF/redirect", SEC050: "vulnerable dependency", SEC051: "outdated dependency",
 };
 
 export type PathRole = "source" | "build" | "docs" | "test" | "local env";
@@ -256,6 +256,7 @@ const ACTION_TITLE: Record<string, (list: Finding[]) => string> = {
   SEC047: (l) => `Set owner, role and price on the server in ${namesOf(l)}`,
   SEC048: (l) => `Keep request input out of SQL, shells and eval in ${namesOf(l)}`,
   SEC049: (l) => `Allowlist fetch and redirect targets in ${namesOf(l)}`,
+  SEC050: (l) => `Upgrade ${l.length} vulnerable package${l.length === 1 ? "" : "s"} (${[...new Set(l.map((f) => /^(@?[^@\s]+)@/.exec(f.title)?.[1] ?? f.title))].slice(0, 3).join(", ")})`,
 };
 
 /** Every critical, then the high-severity rules, ordered by severity × number of hits. */

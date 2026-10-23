@@ -1,4 +1,6 @@
 // Code-flow analysis (src/flow.ts): planted vibe-code bugs must be found; the safe twin next to each must not.
+// Tests never reach the network: the dependency check (deps.ts) is tested with a fake fetch in deps.test.mjs.
+process.env.SAAS_AUDIT_OFFLINE = "1";
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from "node:fs";

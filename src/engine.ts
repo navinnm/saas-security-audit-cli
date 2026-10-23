@@ -7,6 +7,7 @@ import { readdirSync, readFileSync, statSync, existsSync } from "node:fs";
 import { join } from "node:path";
 import { standardsFor, type FindingStandards } from "./standards.js";
 import { analyzeFlows, FLOW_EXTS, type FlowFile } from "./flow.js";
+import { checkDependencies, type DepStatus } from "./deps.js";
 import {
   R, RULES, SECRET_FORMATS, RE, CONTROL_SIGNALS, SECRET_GUIDANCE, SKIP_DIRS, CODE_EXTS, CONFIG_EXTS,
   SQL_EXTS, DOC_EXTS, CONFIG_NAMES, LOCKFILES,
@@ -25,6 +26,10 @@ export interface ScanState {
   signals: Record<number, Signal>; manifests: string[];
   env_files: { file: string; gitignored: boolean; example: boolean }[];
   test_files: number; ci_files: string[]; packages: Record<string, [number, string]>;
+  /** Dependency check (deps.ts): what was checked online, or why it wasn't. */
+  deps?: DepStatus | { skipped: string };
+  /** Whether test files and gitignored env files were read (--include-tests). */
+  tests_read?: boolean;
 }
 
 export interface ScanEvents {
@@ -43,6 +48,10 @@ export interface ScanOptions {
   files?: WalkedFile[];
   /** Set `aborted` to stop analysing; the scan returns what it found so far. */
   signal?: { aborted: boolean };
+  /** Also read test files and gitignored local env files (skipped by default: not shipped). */
+  includeTests?: boolean;
+  /** Skip the online dependency check (also SAAS_AUDIT_OFFLINE=1). */
+  offline?: boolean;
 }
 
 export type WalkedFile = { abs: string; rel: string; name: string };
@@ -341,6 +350,7 @@ export async function scan(root: string, state: ScanState = newState(), ev: Scan
 
   ev.onPhase?.("discover");
   const files = opts.files ?? walk(root);
+  state.tests_read = Boolean(opts.includeTests);
   ev.onDiscover?.(files.length);
   ev.onPhase?.("classify");
   const analysableTotal = files.filter((f) => isAnalysable(f.name)).length;
@@ -363,10 +373,17 @@ export async function scan(root: string, state: ScanState = newState(), ev: Scan
     const ext = pySuffix(name).toLowerCase();
     const category = classify(name, ext);
     if (category === null) continue;
+    const inTest = RE.testPath.test(rel);
+    // Tests and gitignored local env files don't ship: counted, not read (unless asked for).
+    const localEnv = category === "env" && !RE.exampleEnv.test(name) && isIgnored(rel, ignorePats);
+    if (!opts.includeTests && (inTest || localEnv)) {
+      if (inTest && category === "code") state.test_files++;
+      if (localEnv) state.env_files.push({ file: rel, gitignored: true, example: false });
+      continue;
+    }
     const lines = readLines(abs);
     if (lines === null || isOwnReport(lines)) continue;
     state.files_scanned++;
-    const inTest = RE.testPath.test(rel);
     if (inTest && category === "code") state.test_files++;
     if (category === "code" && !inTest && FLOW_EXTS.has(ext)) flowFiles.push({ rel, ext, text: lines.join("\n"), lines });
     let context = inTest ? "test" : "source";
@@ -450,6 +467,17 @@ export async function scan(root: string, state: ScanState = newState(), ev: Scan
   }
   const rlsApp = supabase || Object.keys(state.packages).some((p) => p.startsWith("@supabase/"));
   analyzeSchemaFiles(schemaFiles, rlsApp).forEach(emit);
+  // Dependencies: known vulnerabilities (OSV.dev) and major versions behind (npm registry).
+  if (opts.offline || process.env.SAAS_AUDIT_OFFLINE === "1") state.deps = { skipped: "offline" };
+  else if (!opts.signal?.aborted) {
+    try {
+      const { hits, status } = await checkDependencies(root, files.map((f) => f.rel).filter((r) => !RE.testPath.test(r)));
+      state.deps = status;
+      for (const h of hits) emit(makeFinding(h.id, h.title, h.severity, h.confidence, h.controls, h.rel, h.line, h.evidence, h.guidance, "source"));
+    } catch (e) {
+      state.deps = { skipped: `dependency check failed: ${(e as Error).message}` };
+    }
+  }
   for (const [rel, number, verified, idempotent] of webhookFiles) {
     if (!verified) {
       emit(makeFinding("SEC031", "Webhook handler without visible signature verification", "High", "low", [19],

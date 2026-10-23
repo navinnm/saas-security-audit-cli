@@ -1,4 +1,6 @@
 // Parity with the Claude Code plugin's Python scanner (scripts/scan.py 0.4.0). Since rules 0.5.0 the CLI
+// Tests never reach the network: the dependency check (deps.ts) is tested with a fake fetch in deps.test.mjs.
+process.env.SAAS_AUDIT_OFFLINE = "1";
 // is its own source of truth and goes further (fewer false positives, code-flow analysis), so this only
 // runs on request: SAAS_AUDIT_PARITY=1 npm test.
 import { test } from "node:test";

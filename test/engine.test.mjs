@@ -1,4 +1,6 @@
 // Standalone engine tests (no Python needed). Mirrors the plugin's tests/test_scan.py.
+// Tests never reach the network: the dependency check (deps.ts) is tested with a fake fetch in deps.test.mjs.
+process.env.SAAS_AUDIT_OFFLINE = "1";
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
@@ -38,7 +40,7 @@ test("detects the planted SaaS vulnerabilities", async () => {
 
 test("secrets are detected and never echoed", async () => {
   await withRepo(FIXTURES.secrets, async (root) => {
-    const found = await scan(root);
+    const found = await scan(root, newState(), {}, { includeTests: true });
     const all = JSON.stringify(found);
     for (const v of [FAKE.api, FAKE.stripeLive, FAKE.aws, FAKE.dbPass, FAKE.gh]) assert.ok(!all.includes(v), `leaked ${v.slice(0, 6)}…`);
     const live = found.find((f) => f.file === ".env.production" && f.line === 1);
@@ -120,7 +122,7 @@ test("tenant schema checks: SQL, Drizzle, Prisma", async () => {
 test("suppression, test context, skipped files", async () => {
   await withRepo(FIXTURES.edgeCases, async (root) => {
     const state = newState();
-    const found = await scan(root, state);
+    const found = await scan(root, state, {}, { includeTests: true });
     assert.deepEqual(state.suppressed.map((f) => [f.line, f.suppressed]), [[1, "constant expression only"], [3, "no reason given"]]);
     assert.ok(found.some((f) => f.file === "suppressed.py" && f.line === 4), "wrong-id suppression must not hide a lead");
     assert.ok(!found.some((f) => f.file === "bundle.min.js" || f.file === "bin.png"));
@@ -181,14 +183,20 @@ test("own reports are not re-scanned", async () => {
 });
 
 test("summary separates source from tests", async () => {
-  await withRepo({ "app.py": "eval(x)\n", "tests/test_app.py": "eval(y)\nexec(z)\n" }, async (root) => {
+  await withRepo({ "app.py": "eval(x)\n", "tests/test_app.py": "eval(y)\nexec(z)\n", ".env.local": "API_KEY=abcdefghijklmnop\n", ".gitignore": ".env.local\n" }, async (root) => {
+    // Default: tests and gitignored env files are counted, never read.
+    const quiet = newState();
+    const skipped = buildResult(root, await scan(root, quiet), quiet);
+    assert.equal(skipped.stats.findings, 1);
+    assert.equal(skipped.inventory.test_files, 1);
+    assert.ok(markdown(skipped).includes("Test files and gitignored local env files were not read"));
     const state = newState();
-    const result = buildResult(root, await scan(root, state), state);
-    assert.equal(result.stats.by_severity.High, 3);
+    const result = buildResult(root, await scan(root, state, {}, { includeTests: true }), state);
+    assert.equal(result.stats.by_severity.High, 4);
     assert.equal(result.stats.by_severity_source.High, 1);
     const md = markdown(result);
-    assert.ok(md.includes("| High | 1 | 3 |"));
-    assert.ok(md.includes("excludes 2 lead(s) in test paths"));
+    assert.ok(md.includes("| High | 1 | 4 |"));
+    assert.ok(md.includes("excludes 3 lead(s) in test paths"));
   });
 });
 
@@ -221,7 +229,7 @@ test("PDF and HTML reports", async () => {
   const { renderHtml } = await import("../dist/html.js");
   await withRepo({ ...FIXTURES.vulnerableSaas, "x.js": "el.innerHTML = '<script>alert(1)</script>' + q\n", "tests/t.py": "eval(x)\n" }, async (root) => {
     const state = newState();
-    const result = buildResult(root, await scan(root, state), state);
+    const result = buildResult(root, await scan(root, state, {}, { includeTests: true }), state);
 
     const pdf = renderPdf(result);
     const text = pdf.toString("latin1");

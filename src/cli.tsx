@@ -43,7 +43,8 @@ ${bold("Options")}
   --format <format>                  ${FORMATS.join(" | ")}  (default: pretty in a terminal, text otherwise)
   --json                             Shorthand for --format json
   --all                              Expand medium and low findings in the terminal
-  --include-tests                    Include test files and gitignored env files without asking
+  --include-tests                    Also read test files and gitignored local env files (skipped by default)
+  --offline                          Skip the dependency check (it sends package names + versions to OSV.dev and npm)
   --yes, --no-input                  Skip the welcome screen; every prompt takes its default
   --min-severity <level>             Hide leads below: ${SEVERITIES.join(", ")}
   --baseline <file>                  Previous JSON output; adds new/resolved/persisting comparison
@@ -89,7 +90,7 @@ async function main(): Promise<number> {
       options: {
         root: { type: "string" }, format: { type: "string" }, json: { type: "boolean" }, output: { type: "string", multiple: true },
         "min-severity": { type: "string" }, "fail-on": { type: "string" }, baseline: { type: "string" },
-        "no-animation": { type: "boolean" }, "no-update-check": { type: "boolean" }, "include-tests": { type: "boolean" },
+        "no-animation": { type: "boolean" }, "no-update-check": { type: "boolean" }, "include-tests": { type: "boolean" }, offline: { type: "boolean" },
         "dry-run": { type: "boolean" }, yes: { type: "boolean", short: "y" }, "no-input": { type: "boolean" }, all: { type: "boolean" },
         help: { type: "boolean", short: "h" }, version: { type: "boolean", short: "v" },
       },
@@ -144,7 +145,7 @@ async function main(): Promise<number> {
   const screen = (lines: string[] | string) => out(withMargin(Array.isArray(lines) ? lines : lines.split("\n")));
 
   if (isShow) {
-    const all = await scan(root, newState(), {}, { files: pre.files });
+    const all = await scan(root, newState(), {}, { files: pre.files, includeTests: Boolean(a["include-tests"]), offline: Boolean(a.offline) });
     screen(["", ...showRule(pos[1], sortFindings(all), width)]);
     return 0;
   }
@@ -168,7 +169,7 @@ async function main(): Promise<number> {
   let partial: { percent: number } | undefined;
   const started = Date.now();
   const doRun = async (ev: ScanEvents, signal: { aborted: boolean }) => {
-    findings = await scan(root, state, ev, { files: pre.files, signal });
+    findings = await scan(root, state, ev, { files: pre.files, signal, includeTests: includeTestsFlag, offline: Boolean(a.offline) });
     ev.onPhase?.("report");
     const floor = SEVERITY_RANK[capitalize(minSeverity)];
     result = buildResult(root, sortFindings(findings.filter((f) => SEVERITY_RANK[f.severity] >= floor)), state, baseline);

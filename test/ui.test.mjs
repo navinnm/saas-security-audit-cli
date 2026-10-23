@@ -1,4 +1,6 @@
 // Redesigned terminal UI: CI text, GitHub annotations, verdicts, fix plan, file roles, show, prompts.
+// Tests never reach the network: the dependency check (deps.ts) is tested with a fake fetch in deps.test.mjs.
+process.env.SAAS_AUDIT_OFFLINE = "1";
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";

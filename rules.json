@@ -2345,7 +2345,9 @@
   "SEC046": "Request body written straight to the database (mass assignment)",
   "SEC047": "Owner, role or price taken from the request",
   "SEC048": "Request input reaches raw SQL, a shell or eval (traced)",
-  "SEC049": "Request input picks where the server fetches or redirects (traced)"
+  "SEC049": "Request input picks where the server fetches or redirects (traced)",
+  "SEC050": "Dependency with a known vulnerability",
+  "SEC051": "Dependency a major version or more behind"
  },
  "standards": {
   "SEC001": {
@@ -2816,6 +2818,24 @@
     "CWE-601"
    ],
    "kind": "ssrf"
+  },
+  "SEC050": {
+   "owasp": "A06",
+   "api": [],
+   "llm": [],
+   "cwe": [
+    "CWE-1395"
+   ],
+   "kind": "components"
+  },
+  "SEC051": {
+   "owasp": "A06",
+   "api": [],
+   "llm": [],
+   "cwe": [
+    "CWE-1104"
+   ],
+   "kind": "components"
   }
  },
  "owasp_top10": {
@@ -2893,7 +2913,8 @@
   "CWE-1104": "Unmaintained Third-party Components",
   "CWE-1426": "Improper Validation of Generative AI Output",
   "CWE-1427": "Improper Neutralization of Input Used for LLM Prompting",
-  "CWE-306": "Missing Authentication for Critical Function"
+  "CWE-306": "Missing Authentication for Critical Function",
+  "CWE-1395": "Dependency on Vulnerable Third-Party Component"
  },
  "cwe_top25_2024": [
   "CWE-20",

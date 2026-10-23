@@ -91,11 +91,15 @@ export function buildResult(root: string, findings: Finding[], state: ScanState,
       env_files: state.env_files, test_files: state.test_files, ci_files: state.ci_files },
     standards: standardsSummary(findings),
     vibe_review: vibeSummary(findings),
+    dependencies: state.deps ?? null,
     limitations: [
-      "Regex heuristics only; false positives and false negatives are expected.",
+      "Line rules plus code-flow analysis for JavaScript/TypeScript; false positives and false negatives are expected.",
       "No control is automatically marked PASS; signals show where to look, not that a control is enforced.",
       "Env files are judged by the root .gitignore; folders any .gitignore leaves out (build output, generated code) are skipped. Git history is not inspected.",
-      "No network access or target-code execution; dependency CVEs require the recommended tools.",
+      state.deps && "packages" in state.deps
+        ? "No target-code execution. Network: only package names and versions were sent, to api.osv.dev and registry.npmjs.org (--offline turns this off)."
+        : "No network access or target-code execution; dependency CVEs were not checked (offline or no lockfile).",
+      state.tests_read ? "Test files and gitignored local env files were read (--include-tests)." : "Test files and gitignored local env files were not read; --include-tests reads them.",
     ],
   };
   if (baseline !== undefined) result.comparison = compare(findings, baseline);
@@ -115,8 +119,19 @@ export interface Result {
     env_files: { file: string; gitignored: boolean; example: boolean }[]; test_files: number; ci_files: string[] };
   standards: StandardsSummary; vibe_review: VibeCheck[];
   limitations: string[]; comparison?: Comparison;
+  /** Online dependency check: what was checked, or why it was skipped. */
+  dependencies?: ScanState["deps"] | null;
   /** Present when the user stopped the scan early. */
   partial?: { stopped_at_percent: number };
+}
+
+export function depsLine(d: Result["dependencies"]): string {
+  if (!d) return "not checked";
+  if ("skipped" in d) return d.skipped === "offline" ? "not checked (offline)" : d.skipped;
+  if (!d.packages) return "no lockfile found (package-lock.json, pnpm-lock.yaml or yarn.lock)";
+  return `${d.packages} packages from ${d.lockfiles.join(", ")} checked against OSV.dev on ${d.checked_at.slice(0, 10)}: ` +
+    `${d.vulnerable} with known vulnerabilities (${d.advisories} advisories), ${d.outdated} direct dependencies a major version or more behind` +
+    (d.error ? ` (incomplete: ${d.error})` : "");
 }
 
 const mdEscape = (t: string) => t.replace(/`/g, "'").replace(/\|/g, "\\|");
@@ -125,16 +140,17 @@ export function markdown(result: Result): string {
   const findings = result.findings;
   const stats = result.stats;
   const out: string[] = ["# Local SaaS Security Heuristic Scan", "",
-    `- **Scanner:** saas-security-audit v${CLI_VERSION} (rules ${VERSION}), ${process.env.SAAS_AUDIT_ENGINE === "regex" ? "line rules only" : "line rules plus code-flow analysis for JavaScript/TypeScript"}; read-only, no network requests, no target-code execution.`,
+    `- **Scanner:** saas-security-audit v${CLI_VERSION} (rules ${VERSION}), ${process.env.SAAS_AUDIT_ENGINE === "regex" ? "line rules only" : "line rules plus code-flow analysis for JavaScript/TypeScript"}; read-only, no target-code execution.`,
     `- **Files scanned:** ${stats.files_scanned}`,
+    `- **Dependencies:** ${depsLine(result.dependencies)}`,
     "- **Interpretation:** Every finding is a lead to validate in code, not a confirmed vulnerability.",
     "- **Coverage:** No control is automatically marked PASS.", "",
     "## Summary", "", "| Severity | In source code | All leads |", "|---|---|---|"];
   for (const [s, n] of Object.entries(stats.by_severity)) out.push(`| ${s} | ${stats.by_severity_source[s]} | ${n} |`);
   const other = stats.findings - Object.values(stats.by_severity_source).reduce((a, b) => a + b, 0);
-  out.push("", `**In source code** excludes ${other} lead(s) in test paths or gitignored local env files; ` +
-    "those stay listed below, marked by context. " +
-    `Suppressed inline: ${stats.suppressed}.`, "");
+  out.push("", other
+    ? `**In source code** excludes ${other} lead(s) in test paths or gitignored local env files; those stay listed below, marked by context. Suppressed inline: ${stats.suppressed}.`
+    : `Test files and gitignored local env files were not read (\`--include-tests\` reads them). Suppressed inline: ${stats.suppressed}.`, "");
   if (!findings.length) out.push("No heuristic matches detected. This does **not** mean the project is secure.", "");
   else {
     out.push("## Leads by control", "");
