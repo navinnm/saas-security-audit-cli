@@ -112,6 +112,12 @@ export const fit = (plain: string, max: number) =>
 export const num = (n: number) => n.toLocaleString("en-US");
 export const termWidth = (cols?: number) => Math.max(80, Math.min(cols ?? 120, 132));
 
+/** Left page margin for every interactive screen, so nothing hugs the terminal edge. */
+export const MARGIN = "  ";
+/** Usable width inside the left and right margins. */
+export const contentWidth = (cols?: number) => termWidth(cols) - 2 * MARGIN.length;
+export const withMargin = (lines: string[]) => lines.map((l) => (l ? MARGIN + l : l));
+
 /** Spread two pieces across a line: left … right. */
 export const spread = (left: string, right: string, width: number) =>
   left + " ".repeat(Math.max(2, width - vlen(left) - vlen(right))) + right;

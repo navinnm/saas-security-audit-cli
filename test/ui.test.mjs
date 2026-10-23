@@ -128,3 +128,30 @@ test("pretty format without a TTY: all screens, no prompts, no colour", async ()
     assert.ok(!/\x1b\[/.test(r.stdout));
   });
 });
+
+test("repository profile: languages, folder roles, skipped dirs", async () => {
+  const { profile, folderRole, languageOf } = await import("../dist/profile.js");
+  const { preflight } = await import("../dist/engine.js");
+  const root = mkdtempSync(join(tmpdir(), "saas-audit-profile-"));
+  try {
+    const files = { "app/a.ts": "", "app/b.tsx": "", "app/c.php": "", "resources/views/x.blade.php": "", "tests/t.py": "",
+      "docs/readme.md": "", "README.md": "", "node_modules/x/index.js": "", "Dockerfile": "", "LICENSE": "" };
+    for (const [rel, text] of Object.entries(files)) {
+      mkdirSync(dirname(join(root, rel)), { recursive: true });
+      writeFileSync(join(root, rel), text);
+    }
+    const p = profile(root, preflight(root).files);
+    assert.deepEqual(p.languages.slice(0, 2), [
+      { name: "Markdown", files: 2, share: 2 / 8 }, { name: "TypeScript", files: 2, share: 2 / 8 },
+    ], "ties sort by name; shares are of files with a known language");
+    assert.ok(p.languages.some((l) => l.name === "Blade"));
+    assert.equal(p.otherFiles, 1, "LICENSE has no language");
+    assert.deepEqual(p.folders.map((f) => [f.name, f.files, f.role]), [["app", 3, "source"], ["docs", 1, "docs"], ["resources", 1, "source"], ["tests", 1, "tests"]]);
+    assert.equal(p.rootFiles, 3);
+    assert.deepEqual(p.skippedDirs, ["node_modules"]);
+    assert.equal(folderRole(".next-e2e"), "build output");
+    assert.equal(languageOf("Dockerfile"), "Docker");
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});

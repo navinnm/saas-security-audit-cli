@@ -3,7 +3,7 @@ import { Text, useApp, useInput, useStdin, useStdout } from "ink";
 import type { Finding, ScanEvents } from "../engine.js";
 import { SEVERITY_RANK } from "../rules.js";
 import { shownByDefault } from "../view.js";
-import { GROUPS, groupOf, num, termWidth } from "./theme.js";
+import { GROUPS, contentWidth, groupOf, num, withMargin } from "./theme.js";
 import { liveFrame, type RunInfo, type StepState } from "./screens.js";
 import { promptFrame } from "./prompt.js";
 
@@ -120,7 +120,7 @@ export function LiveScan({ info, report, includeTests, run, onStopped, minMs = 9
 
   if (finished) return <Text>{""}</Text>;
 
-  const width = termWidth(stdout?.columns);
+  const width = contentWidth(stdout?.columns);
   const height = Math.max(24, stdout?.rows ?? 40);
   const elapsedAnalyse = analyse.current.startedAt ? (Date.now() - analyse.current.startedAt) / 1000 : 0;
   const rate = elapsedAnalyse > 0.5 ? analyse.current.done / elapsedAnalyse : 0;
@@ -154,5 +154,5 @@ export function LiveScan({ info, report, includeTests, run, onStopped, minMs = 9
       yes: "Yes, stop", no: "No, keep going", defaultYes: false, tone: "warn", hint: "ctrl+c again stops immediately",
     }, askYes, width - 2) : undefined,
   });
-  return <Text>{text}</Text>;
+  return <Text>{withMargin(text.split("\n")).join("\n")}</Text>;
 }

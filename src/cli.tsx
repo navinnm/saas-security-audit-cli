@@ -16,8 +16,9 @@ import {
 } from "./ui/screens.js";
 import { renderHtml } from "./html.js";
 import { renderPdf } from "./pdf.js";
-import { bold, c, gradient, termWidth } from "./ui/theme.js";
+import { bold, c, contentWidth, gradient, withMargin } from "./ui/theme.js";
 import { stackOf } from "./view.js";
+import { profile } from "./profile.js";
 import { CLI_VERSION } from "./version.js";
 import { latestVersion, runUpdate, updateCheckEnabled, updateNotice, withDeadline } from "./update.js";
 
@@ -131,28 +132,31 @@ async function main(): Promise<number> {
     }
   }
 
-  const width = termWidth(process.stdout.columns);
+  const width = contentWidth(process.stdout.columns);
   const pre = preflight(root);
+  const repo = profile(root, pre.files);
   const info: RunInfo = { version: pkg.version, project: basename(root), path: tildify(root), stack: stackOf(Object.keys(pre.packages)), width };
   const reportName = outputs.length ? displayPath(outputs[0]) : null;
   const yes = Boolean(a.yes || a["no-input"]);
   const askable = format === "pretty" && interactive && canAsk() && !yes;
   const out = (lines: string[] | string) => process.stdout.write((Array.isArray(lines) ? lines.join("\n") : lines) + "\n");
+  // Interactive screens get a left margin; machine formats (json/text/github/markdown) never do.
+  const screen = (lines: string[] | string) => out(withMargin(Array.isArray(lines) ? lines : lines.split("\n")));
 
   if (isShow) {
     const all = await scan(root, newState(), {}, { files: pre.files });
-    out(showRule(pos[1], sortFindings(all), width));
+    screen(["", ...showRule(pos[1], sortFindings(all), width)]);
     return 0;
   }
 
   // 1 · Welcome
   if (format === "pretty" && interactive && !yes) {
-    out(welcomeScreen({ ...info, files: pre.total, report: reportName, failOn }));
+    screen(welcomeScreen({ ...info, files: pre.total, profile: repo, report: reportName, failOn }));
     if (askable) {
       const go = await ask({ question: "Start the scan now?", note: estimate(pre.analysable), defaultYes: true });
-      if (!go) { out(["", "  " + c.muted("Scan not started. Nothing was read or written."), ""]); return 0; }
+      if (!go) { screen(["", " " + c.muted("Scan not started. Nothing was read or written."), ""]); return 0; }
     }
-    out([welcomeFooter(width), ""]);
+    screen(["", welcomeFooter(width), "", ""]);
   }
 
   // 2 · Scan, then write reports (shown as the pipeline's last step)
@@ -196,25 +200,28 @@ async function main(): Promise<number> {
   else if (format === "markdown") { if (!outputs.length) out(markdown(result)); }
   else if (format === "text" || format === "github") {
     if (format === "github") process.stdout.write(githubAnnotations(result));
-    process.stdout.write(ciText(result, { version: pkg.version, project: info.project, elapsed, filesWalked: pre.total, failOn, gateTripped, report: reportName }));
+    process.stdout.write(ciText(result, { version: pkg.version, project: info.project, elapsed, filesWalked: pre.total, failOn, gateTripped, report: reportName, profile: repo }));
   } else {
-    const summary = summaryScreen(result, { ...info, elapsed, filesWalked: pre.total, report: reportName, failOn, gateTripped, partial, includeTests: includeTestsFlag });
-    out(summary.lines);
+    const summary = summaryScreen(result, { ...info, elapsed, filesWalked: pre.total, report: reportName, failOn, gateTripped, partial, includeTests: includeTestsFlag, profile: repo });
+    screen(summary.lines);
     let withTests = includeTestsFlag;
     const hidden = summary.view.hidden.length;
     if (hidden && !includeTestsFlag) {
       const q = `Show ${hidden} more finding${hidden === 1 ? "" : "s"} from test files and local env files?`;
       if (askable) withTests = (await ask({ question: q, defaultYes: false, hint: "enter keeps the default · y / n" })) === true;
-      else if (interactive) out("  " + collapsed(q, null, yes ? "--yes" : "no input"));
+      else if (interactive) screen(" " + collapsed(q, null, yes ? "--yes" : "no input"));
       out("");
     }
-    out(findingsScreen({ width, all: Boolean(a.all), report: reportName, findings: withTests ? result.findings : summary.view.shown,
+    out("");
+    screen(findingsScreen({ width, all: Boolean(a.all), report: reportName, findings: withTests ? result.findings : summary.view.shown,
       scope: withTests ? "incl. tests" : "in source" }));
-    out(fixScreen({ width, view: summary.view, verdict: summary.verdict, report: reportName, failOn, elapsed }));
+    out("");
+    screen(fixScreen({ width, view: summary.view, verdict: summary.verdict, report: reportName, failOn, elapsed }));
     if (outputs.length) {
       const q = `Open ${basename(outputs[0])} now?`;
       if (askable) { if ((await ask({ question: q, defaultYes: true, hint: "y / n" })) === true) openFile(outputs[0]); }
-      else if (interactive) out("  " + collapsed(q, null, yes ? "--yes" : "no input"));
+      else if (interactive) screen(" " + collapsed(q, null, yes ? "--yes" : "no input"));
+      out("");
     }
   }
   if (updateCheck) {

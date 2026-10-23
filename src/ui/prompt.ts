@@ -3,7 +3,7 @@
  * hints, and a safe default. Once answered it collapses to one line in the scrollback.
  */
 import { emitKeypressEvents } from "node:readline";
-import { P, bg, bold, box, c, fg, termWidth } from "./theme.js";
+import { MARGIN, P, bg, bold, box, c, contentWidth, fg } from "./theme.js";
 
 export interface AskOptions {
   question: string;
@@ -39,11 +39,11 @@ export function collapsed(question: string, answer: string | null, skippedReason
 export function ask(o: AskOptions): Promise<boolean | null> {
   const stdin = process.stdin;
   const out = process.stdout;
-  const width = termWidth(out.columns);
+  const width = contentWidth(out.columns);
   let yes = o.defaultYes;
   let lines = 0;
   const draw = () => {
-    const frame = promptFrame(o, yes, width);
+    const frame = promptFrame(o, yes, width).map((l) => MARGIN + " " + l);
     if (lines) out.write(`\x1b[${lines}F\x1b[0J`);
     out.write(frame.join("\n") + "\n");
     lines = frame.length;
@@ -61,7 +61,7 @@ export function ask(o: AskOptions): Promise<boolean | null> {
       stdin.pause();
       out.write(`\x1b[${lines}F\x1b[0J\x1b[?25h`);
       const label = answer === null ? null : answer ? (o.yes ?? "Yes") : (o.no ?? "No");
-      out.write(collapsed(o.question, label, answer === null ? "cancelled" : undefined) + "\n");
+      out.write(MARGIN + " " + collapsed(o.question, label, answer === null ? "cancelled" : undefined) + "\n");
       resolveAnswer(answer);
     };
     const onKey = (str: string | undefined, key: { name?: string; ctrl?: boolean } = {}) => {

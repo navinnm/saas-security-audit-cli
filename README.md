@@ -77,7 +77,7 @@ saas-audit --output security-report.pdf --output security-report.html
 
 ```yaml
 - name: SaaS security scan
-  run: npx saas-security-audit@0.5.0 --fail-on high --format github --output security-report.md
+  run: npx saas-security-audit@0.5.1 --fail-on high --format github --output security-report.md
 ```
 
 `--format github` adds inline annotations on the pull request (errors for critical and high, warnings for medium), followed by the plain-text summary.

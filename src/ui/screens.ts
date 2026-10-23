@@ -5,13 +5,14 @@
  */
 import type { Finding } from "../engine.js";
 import type { Result } from "../report.js";
+import { topFolder, type Profile } from "../profile.js";
 import { RULE_TITLES, SEVERITY_RANK } from "../rules.js";
 import {
   areas, buildView, CONTROL_SHORT, fixPlan, pathRole, RULE_SHORT, verdict, whereWorst, type Verdict, type View,
 } from "../view.js";
 import {
   P, SEVERITY_ORDER, SEV_LOWER, SEV_SHORT, GROUPS, badge, bar, bg, bold, box, c, fg, fit, gradientBlock, label, num, padEnd,
-  padStart, poweredBy, rainbowProgress, sevText, spread, termWidth, underline, vlen, FULGID,
+  padStart, poweredBy, rainbowAt, rainbowProgress, sevText, spread, termWidth, underline, vlen, FULGID,
 } from "./theme.js";
 
 export interface RunInfo {
@@ -66,6 +67,7 @@ export function topBand(pct: number, meta: string, width: number, done = false):
 
 export interface WelcomeInfo extends RunInfo {
   files: number;
+  profile: Profile;
   report: string | null;
   failOn: string;
 }
@@ -115,10 +117,49 @@ export function welcomeScreen(i: WelcomeInfo): string[] {
     "",
     ...indent(columns(target, run, half), 2),
     "",
+    ...indent(columns(languageBlock(i.profile, half), folderBlock(i.profile, half), half), 2),
+    "",
     "  " + label("what gets checked"),
     ...indent(chips, 2),
     "",
   ];
+}
+
+const ROLE_TEXT: Record<string, (s: string) => string> = {
+  source: (s) => s, "build output": (s) => c.muted(s), tests: (s) => c.muted(s), docs: (s) => c.muted(s),
+  config: (s) => c.muted(s), dependencies: (s) => c.dim(s), assets: (s) => c.dim(s),
+};
+
+/** LANGUAGES: top languages by file count, with share and a gradient bar. */
+export function languageBlock(p: Profile, width: number, rows = 6): string[] {
+  const out = [label(`languages · ${p.languages.length}`)];
+  if (!p.languages.length) return [...out, c.muted("no source files recognised")];
+  const nameW = 12;
+  const barW = Math.max(6, Math.min(16, width - nameW - 22));
+  const top = p.languages.slice(0, rows);
+  top.forEach((l, k) => {
+    const pct = `${Math.max(l.share * 100 < 1 ? 1 : 0, Math.round(l.share * 100))}%`;
+    out.push(`${padEnd(k === 0 ? bold(l.name) : l.name, nameW)} ${c.muted(padStart(num(l.files), 7))}  ${padStart(pct, 4)}  ${fg(rainbowAt(k / Math.max(1, rows - 1)), bar(l.share, top[0].share, barW))}`);
+  });
+  const rest = p.languages.length - top.length;
+  if (rest > 0 || p.otherFiles) {
+    out.push(c.dim([rest > 0 ? `+${rest} more language${rest === 1 ? "" : "s"}` : "", p.otherFiles ? `${num(p.otherFiles)} other files` : ""].filter(Boolean).join(" · ")));
+  }
+  return out;
+}
+
+/** FOLDERS: top-level folders by file count, with each folder's role. */
+export function folderBlock(p: Profile, width: number, rows = 6): string[] {
+  const out = [label(`folders · ${p.folders.length}`)];
+  const nameW = Math.max(14, Math.min(26, width - 26));
+  for (const f of p.folders.slice(0, rows)) {
+    out.push(`${padEnd(fit(f.name + "/", nameW), nameW)} ${c.muted(padStart(num(f.files), 7))}  ${ROLE_TEXT[f.role](f.role)}`);
+  }
+  const rest = p.folders.length - Math.min(rows, p.folders.length);
+  const extras = [rest > 0 ? `+${rest} more folder${rest === 1 ? "" : "s"}` : "", p.rootFiles ? `${num(p.rootFiles)} files at root` : ""].filter(Boolean);
+  if (extras.length) out.push(c.dim(extras.join(" · ")));
+  if (p.skippedDirs.length) out.push(c.dim(`skipped: ${p.skippedDirs.join(" · ")}`));
+  return out;
 }
 
 export const welcomeFooter = (width: number) =>
@@ -171,8 +212,7 @@ export function liveFrame(s: LiveState): string {
     let time = st.time ? c.muted(st.time) : "";
     if (st.name === "Analyse" && st.state === "active") {
       const frac = s.analyse.total ? s.analyse.done / s.analyse.total : 0;
-      const filled = Math.round(frac * barW);
-      detail = `${c.accent("━".repeat(filled))}${fg(P.track, "━".repeat(barW - filled))}  ${bold(`${Math.round(frac * 100)}%`)}  ${c.muted(`${num(s.analyse.done)} / ${num(s.analyse.total)} files`)}`;
+      detail = `${rainbowProgress(frac, barW)}  ${bold(`${Math.round(frac * 100)}%`)}  ${c.muted(`${num(s.analyse.done)} / ${num(s.analyse.total)} files`)}`;
       time = s.analyse.eta ? c.muted(`ETA ${s.analyse.eta}`) : "";
     } else detail = st.state === "pending" ? c.dim(st.detail) : c.muted(st.detail);
     out.push(" " + spread(`${icon}  ${name} ${detail}`, time, w));
@@ -216,7 +256,7 @@ export function liveFrame(s: LiveState): string {
     if (!rows.length) out.push("  " + c.dim("none yet"));
     for (const f of rows) {
       const titleW = 30;
-      const pathW = Math.min(64, w - 6 - 2 - 7 - 2 - titleW - 4);
+      const pathW = Math.min(52, w - 6 - 2 - 7 - 2 - titleW - 4);
       out.push(`  ${badge(f.severity)}  ${c.muted(f.id.padEnd(7))} ${padEnd(fit(`${f.file}:${f.line}`, pathW), pathW)}  ${c.muted(fit(RULE_SHORT[f.id] ? capitalizeFirst(shortTitle(f)) : f.title, titleW))}`);
     }
     out.push("");
@@ -246,6 +286,7 @@ export interface SummaryInfo extends RunInfo {
   gateTripped: boolean;
   partial?: { percent: number };
   includeTests: boolean;
+  profile?: Profile;
 }
 
 export function summaryScreen(result: Result, i: SummaryInfo): { lines: string[]; view: View; verdict: Verdict } {
@@ -279,7 +320,8 @@ export function summaryScreen(result: Result, i: SummaryInfo): { lines: string[]
   const worst = whereWorst(v.shown);
   const left: string[] = [];
   if (worst) {
-    left.push(label(`where the ${num(worst.total)} ${worst.severity === "Critical" ? "criticals" : "highs"} are`));
+    const noun = worst.severity === "Critical" ? "critical" : "high";
+    left.push(label(`where the ${num(worst.total)} ${worst.total === 1 ? `${noun} is` : `${noun}s are`}`));
     for (const g of worst.groups.slice(0, 4)) {
       const ratio = `${g.count} / ${worst.total}`;
       left.push(`${padEnd(g.role === "source" ? bold(sevText(worst.severity, ratio)) : bold(c.muted(ratio)), 9)}  ${fit(shortDir(g.dir), half - 12)}`);
@@ -313,6 +355,9 @@ export function summaryScreen(result: Result, i: SummaryInfo): { lines: string[]
   }
   out.push("");
 
+  // By folder
+  if (i.profile) out.push(...byFolder(v.shown, i.profile, w), "");
+
   // Control coverage grid
   out.push(" " + spread(label("control coverage · 22"), c.dim("a control passes only when enforcement is located and tested"), w));
   const leadIds = new Set(v.coverage.leads.map((r) => r.id));
@@ -342,6 +387,35 @@ export function summaryScreen(result: Result, i: SummaryInfo): { lines: string[]
   ], 14)));
   out.push(" " + padStart(poweredBy(), w), "");
   return { lines: out, view: v, verdict: verdictV };
+}
+
+/** BY FOLDER: which top-level folders hold the leads, with their size and role. */
+function byFolder(shown: Finding[], p: Profile, w: number): string[] {
+  const filesIn = new Map(p.folders.map((f) => [f.name, f]));
+  const counts = new Map<string, { total: number; crit: number; high: number }>();
+  for (const f of shown) {
+    const top = topFolder(f.file);
+    const k = counts.get(top) ?? { total: 0, crit: 0, high: 0 };
+    k.total++;
+    if (f.severity === "Critical") k.crit++;
+    if (f.severity === "High") k.high++;
+    counts.set(top, k);
+  }
+  const rows = [...counts.entries()].sort((a, b) => b[1].crit - a[1].crit || b[1].high - a[1].high || b[1].total - a[1].total);
+  const out = [" " + spread(label(`by folder · ${p.folders.length} top-level`), c.dim(p.languages.slice(0, 3).map((l) => `${l.name} ${Math.round(l.share * 100)}%`).join(" · ")), w)];
+  if (!rows.length) return [...out, " " + c.muted("no leads in any folder")];
+  const nameW = Math.min(30, Math.max(16, w - 70));
+  out.push(" " + `${c.dim("FOLDER".padEnd(nameW))}${c.dim(padStart("FILES", 8))}${c.dim(padStart("LEADS", 8))}  ${c.dim("CRIT".padStart(5))} ${c.dim("HIGH".padStart(5))}   ${c.dim("ROLE")}`);
+  const max = Math.max(...rows.map(([, k]) => k.total));
+  for (const [name, k] of rows.slice(0, 8)) {
+    const meta = filesIn.get(name);
+    const role = name === "(root)" ? "root files" : meta?.role ?? "source";
+    const display = name === "(root)" ? "(repo root)" : name + "/";
+    out.push(" " + `${padEnd(fit(display, nameW - 1), nameW)}${c.muted(padStart(meta ? num(meta.files) : name === "(root)" ? num(p.rootFiles) : "—", 8))}${bold(padStart(num(k.total), 8))}  ${k.crit ? c.crit(padStart(num(k.crit), 5)) : c.dim(padStart("–", 5))} ${k.high ? c.high(padStart(num(k.high), 5)) : c.dim(padStart("–", 5))}   ${padEnd((ROLE_TEXT[role] ?? ((s: string) => c.muted(s)))(role), 14)} ${c.accent(bar(k.total, max, 12))}`);
+  }
+  const quiet = p.folders.length - rows.filter(([n]) => n !== "(root)").length;
+  if (rows.length > 8 || quiet > 0) out.push(" " + c.dim([rows.length > 8 ? `+${rows.length - 8} more folders with leads` : "", quiet > 0 ? `${quiet} folder${quiet === 1 ? "" : "s"} with no leads` : ""].filter(Boolean).join(" · ")));
+  return out;
 }
 
 function shortDir(dir: string): string {
@@ -542,7 +616,7 @@ export function showRule(id: string, findings: Finding[], width: number): string
 
 // ---------- 6 · CI text and GitHub annotations ----------
 
-export function ciText(result: Result, o: { version: string; project: string; elapsed: number; filesWalked: number; failOn: string; gateTripped: boolean; report: string | null }): string {
+export function ciText(result: Result, o: { version: string; project: string; elapsed: number; filesWalked: number; failOn: string; gateTripped: boolean; report: string | null; profile?: Profile }): string {
   const v = buildView(result, false);
   const sc = v.sourceCounts;
   const lines = [
@@ -552,6 +626,11 @@ export function ciText(result: Result, o: { version: string; project: string; el
     ["counts", `crit=${sc.Critical ?? 0} high=${sc.High ?? 0} med=${sc.Medium ?? 0} low=${sc.Low ?? 0} info=${sc.Informational ?? 0}`],
     ["controls", `leads=${v.coverage.leads.length} no_signal=${v.coverage.noSignals.length} not_verified=${v.coverage.notVerified.length} passed=0`],
   ];
+  if (o.profile) {
+    lines.splice(2, 0,
+      ["languages", o.profile.languages.slice(0, 5).map((l) => `${l.name} ${l.files} (${Math.round(l.share * 100)}%)`).join(" · ") || "none recognised"],
+      ["folders", o.profile.folders.slice(0, 5).map((f) => `${f.name}/ ${f.files}`).join(" · ") + (o.profile.skippedDirs.length ? ` · skipped ${o.profile.skippedDirs.join(",")}` : "")]);
+  }
   const out = lines.map(([k, val]) => k.padEnd(12) + val);
   const byRule = new Map<string, Finding[]>();
   for (const f of v.shown.filter((f) => SEVERITY_RANK[f.severity] >= SEVERITY_RANK.High)) byRule.set(f.id, [...(byRule.get(f.id) ?? []), f]);
