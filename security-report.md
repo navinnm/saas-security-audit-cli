@@ -1,7 +1,7 @@
 # Local SaaS Security Heuristic Scan
 
 - **Scanner:** v0.3.0, read-only local heuristics; no network requests, no target-code execution.
-- **Files scanned:** 15
+- **Files scanned:** 16
 - **Interpretation:** Every finding is a lead to validate in code, not a confirmed vulnerability.
 - **Coverage:** No control is automatically marked PASS.
 
@@ -10,7 +10,7 @@
 | Severity | Leads |
 |---|---|
 | Critical | 1 |
-| High | 25 |
+| High | 28 |
 | Medium | 9 |
 | Low | 0 |
 | Informational | 0 |
@@ -66,6 +66,8 @@ Guidance: Never evaluate request-influenced strings; use explicit parsers and al
 
 - High — `test/engine.test.mjs:99` _(test)_ — `await withRepo({ "node_modules/bad.js": "eval(userInput)\n" }, async (root) => {`
 - High — `test/engine.test.mjs:120` _(test)_ — `await withRepo({ "a.py": "eval(x)\n" }, async (root) => {`
+- High — `test/engine.test.mjs:136` _(test)_ — `await withRepo({ "a.py": "eval(x)\n" }, async (root) => {`
+- High — `test/engine.test.mjs:148` _(test)_ — `await withRepo({ "app.py": "eval(x)\n", "tests/test_app.py": "eval(y)\nexec(z)\n" }, async (root) => {`
 - High — `test/fixtures.mjs:79` _(test)_ — `"bin.png": "\u0000PNGDATA eval(x)",`
 - High — `test/fixtures.mjs:80` _(test)_ — `"bundle.min.js": "eval(x)\n",`
 - High — `test/fixtures.mjs:84` _(test)_ — `"A/upper.js": "eval(a)\n",`
@@ -149,6 +151,12 @@ Guidance: Resolve the path and confirm it stays inside the intended directory, o
 
 ### C15. Dependency vulnerability management and secret exposure
 
+**SEC001 — Possible hardcoded credential** · confidence medium
+
+Guidance: Confirm whether the value is real. If so, rotate it, remove it from history, and load it from a secret store.
+
+- High — `security-report.md:133` — `- Medium — 'test/fixtures.mjs:50' _(test)_ — '"app.py": 'APP_DEBUG = True\nAPI_KEY = "${FAKE.api}"\npassword = "[REDACTED]"\n','`
+
 **SEC012 — Known-format secret** · confidence high
 
 Guidance: Treat as exposed: rotate first, then purge from git history and move to a secret store.
@@ -193,7 +201,7 @@ Status stays NOT VERIFIED until enforcement and tests are confirmed in code. Sig
 | 2 | Authentication and authorization on every API route | NOT VERIFIED | 1 | 1/2 | `rules.json:1810` |
 | 3 | Server-side enforcement of permissions and business rules | NOT VERIFIED | 2 | 9/2 | `rules.json:12`, `src/ui/theme.ts:60` |
 | 4 | Rate limiting and abuse prevention | NOT VERIFIED | 0 | 15/2 | `rules.json:9`, `src/ui/theme.ts:59` |
-| 5 | Input validation, output encoding, and safe deserialization | NOT VERIFIED | 11 | 9/0 | `rules.json:1822` |
+| 5 | Input validation, output encoding, and safe deserialization | NOT VERIFIED | 13 | 9/0 | `rules.json:1822` |
 | 6 | Parameterized database queries | NOT VERIFIED | 5 | 22/6 | `rules.json:109`, `src/engine.ts:363` |
 | 7 | CORS allowlist and credential policy | NOT VERIFIED | 1 | 14/1 | `package.json:4`, `rules.json:12`, `src/cli.tsx:22` |
 | 8 | HTTPS, secure cookies, and trusted proxy configuration | NOT VERIFIED | 1 | 2/0 | `rules.json:579` |
@@ -203,7 +211,7 @@ Status stays NOT VERIFIED until enforcement and tests are confirmed in code. Sig
 | 12 | Admin and security audit logging | NOT VERIFIED | 0 | 2/0 | `rules.json:17`, `src/ui/theme.ts:61` |
 | 13 | Private storage and authorized file access | NOT VERIFIED | 3 | 3/0 | `rules.json:1414` |
 | 14 | Admin interface and privileged-operation protection | NOT VERIFIED | 0 | 1/0 | `rules.json:1858` |
-| 15 | Dependency vulnerability management and secret exposure | NOT VERIFIED | 2 | — | dependency tools |
+| 15 | Dependency vulnerability management and secret exposure | NOT VERIFIED | 3 | — | dependency tools |
 | 16 | File upload security | NOT VERIFIED | 0 | 4/0 | `rules.json:1862` |
 | 17 | Independent AI-assisted review | NOT VERIFIED | 0 | — | agent review |
 | 18 | Security headers | NOT VERIFIED | 0 | 2/1 | `rules.json:1866` |

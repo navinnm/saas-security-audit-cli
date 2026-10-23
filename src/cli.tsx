@@ -11,6 +11,7 @@ import { SEVERITY_RANK } from "./rules.js";
 import { LiveScan } from "./ui/LiveScan.js";
 import { renderSummary } from "./ui/summary.js";
 import { c, gradient } from "./ui/theme.js";
+import { latestVersion, runUpdate, updateCheckEnabled, updateNotice, withDeadline } from "./update.js";
 
 const pkg = JSON.parse(readFileSync(new URL("../package.json", import.meta.url), "utf8")) as { version: string };
 const SEVERITIES = Object.keys(SEVERITY_RANK).map((s) => s.toLowerCase());
@@ -23,6 +24,7 @@ injection, CORS, webhooks, SSRF, JWT sessions, and AI/LLM risks across 22 contro
 
 ${c.bold("Usage")}
   saas-audit [path] [options]
+  saas-audit update                Update to the latest version
 
 ${c.bold("Options")}
   --format <pretty|markdown|json>  Output format (default: pretty in a terminal, markdown otherwise)
@@ -32,6 +34,7 @@ ${c.bold("Options")}
   --fail-on <level>                Exit 1 on an unsuppressed lead at/above: ${FAIL_ON.join(", ")}
   --baseline <file>                Previous JSON output; adds new/resolved/persisting comparison
   --no-animation                   Skip the live scanner panel
+  --no-update-check                Don't check npm for a newer version (also: SAAS_AUDIT_NO_UPDATE_CHECK=1)
   -v, --version                    Print the version
   -h, --help                       Show this help
 
@@ -64,7 +67,7 @@ async function main(): Promise<number> {
       options: {
         root: { type: "string" }, format: { type: "string" }, json: { type: "boolean" }, output: { type: "string" },
         "min-severity": { type: "string" }, "fail-on": { type: "string" }, baseline: { type: "string" },
-        "no-animation": { type: "boolean" }, help: { type: "boolean", short: "h" }, version: { type: "boolean", short: "v" },
+        "no-animation": { type: "boolean" }, "no-update-check": { type: "boolean" }, "dry-run": { type: "boolean" }, help: { type: "boolean", short: "h" }, version: { type: "boolean", short: "v" },
       },
     });
   } catch (err) {
@@ -73,6 +76,7 @@ async function main(): Promise<number> {
   const a = parsed.values;
   if (a.help) { process.stdout.write(HELP + "\n"); return 0; }
   if (a.version) { process.stdout.write(pkg.version + "\n"); return 0; }
+  if (parsed.positionals[0] === "update" && parsed.positionals.length === 1) return runUpdate(pkg.version, Boolean(a["dry-run"]));
 
   const interactive = Boolean(process.stdout.isTTY) && !process.env.CI && !a["no-animation"] && process.env.TERM !== "dumb";
   const format = a.format ?? (a.json ? "json" : interactive ? "pretty" : "markdown");
@@ -97,6 +101,8 @@ async function main(): Promise<number> {
     }
   }
 
+  // Version check runs in the background during the scan; the scan itself never uses the network.
+  const updateCheck = format === "pretty" && updateCheckEnabled(interactive, Boolean(a["no-update-check"])) ? latestVersion() : null;
   const state = newState();
   let findings: Finding[] = [];
   let filesWalked: number | undefined;
@@ -125,6 +131,10 @@ async function main(): Promise<number> {
   else if (format === "markdown") { if (!a.output) process.stdout.write(markdown(result) + "\n"); }
   else process.stdout.write(renderSummary(result, { elapsedMs: Date.now() - started, columns: process.stdout.columns,
     outputPath: a.output ? tildify(resolve(a.output)) : undefined, filesWalked }) + "\n");
+  if (updateCheck) {
+    const notice = updateNotice(pkg.version, await withDeadline(updateCheck, 400));
+    if (notice) process.stdout.write(notice + "\n");
+  }
 
   if (failOn !== "none") {
     const threshold = SEVERITY_RANK[capitalize(failOn)];

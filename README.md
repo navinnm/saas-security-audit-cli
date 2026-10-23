@@ -1,6 +1,6 @@
 # saas-security-audit — SaaS Security Scanner CLI
 
-**Scan any SaaS codebase in seconds for the security bugs that leak customer data:** cross-tenant access, IDOR/BOLA, missing Supabase row-level security (RLS), leaked secrets, SQL injection, permissive CORS, unsigned webhooks, SSRF, weak JWT sessions, and AI/LLM prompt injection. Every finding maps to one of 22 OWASP-aligned controls. It runs locally and read-only, and makes no network requests.
+**Scan any SaaS codebase in seconds for the security bugs that leak customer data:** cross-tenant access, IDOR/BOLA, missing Supabase row-level security (RLS), leaked secrets, SQL injection, permissive CORS, unsigned webhooks, SSRF, weak JWT sessions, and AI/LLM prompt injection. Every finding maps to one of 22 OWASP-aligned controls. It runs locally and read-only; the scan never touches the network.
 
 ```bash
 npx saas-security-audit
@@ -42,6 +42,9 @@ saas-audit [path] [options]
   --fail-on <level>                Exit 1 on a lead at/above this severity (CI gate)
   --baseline <file>                Diff against a previous JSON run: new / resolved / persisting
   --no-animation                   Skip the live scanner panel
+  --no-update-check                Don't check npm for a newer version
+
+saas-audit update                  Update to the latest version
 ```
 
 In an interactive terminal you get the live scanner: a sweeping scan beam, a progress bar, per-category counters, and a feed of findings as they're discovered. With `CI` set, `NO_COLOR` set, or output piped, it switches automatically to plain Markdown.
@@ -50,7 +53,7 @@ In an interactive terminal you get the live scanner: a sweeping scan beam, a pro
 
 ```yaml
 - name: SaaS security scan
-  run: npx saas-security-audit@0.3.1 --fail-on high --output security-report.md
+  run: npx saas-security-audit@0.3.2 --fail-on high --output security-report.md
 ```
 
 Track progress between runs:
@@ -78,9 +81,10 @@ The CLI and the plugin share one rule set and produce identical results.
 
 ## Privacy
 
-- Runs entirely on your machine: no network requests, no telemetry, and it never executes your code.
+- The scan runs entirely on your machine. It makes no network requests, never executes your code, and has no telemetry.
+- **Update check:** in an interactive terminal, the CLI asks the public npm registry (`registry.npmjs.org`) at most once a day whether a newer version exists. That request contains only the package name; nothing about your code or findings. It never runs in CI, when output is piped, or with `--json`/`--format markdown`. Turn it off with `--no-update-check`, `SAAS_AUDIT_NO_UPDATE_CHECK=1`, or `NO_UPDATE_NOTIFIER=1`. `saas-audit update` contacts the registry only when you run it.
 - Secret values are redacted in every output.
-- It doesn't read environment variables or credentials. The one exception is `PATH`, which it reads only to report which optional audit tools are installed.
+- It doesn't read credentials. The only environment variables it reads are `PATH` (to report which optional audit tools are installed) and the colour and update-check switches above.
 
 ## Development
 

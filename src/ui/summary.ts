@@ -16,7 +16,7 @@ export function renderSummary(result: Result, opts: { elapsedMs: number; columns
   const secs = (opts.elapsedMs / 1000).toFixed(1);
 
   out.push("", "");
-  out.push(` ${c.green("✔")} ${c.bold("Scan complete")} ${c.gray(`— ${opts.filesWalked !== undefined ? `${opts.filesWalked} files checked, ${s.files_scanned} analysed` : `${s.files_scanned} files analysed`} · ${secs}s · offline · nothing left your machine`)}`);
+  out.push(` ${c.green("✔")} ${c.bold("Scan complete")} ${c.gray(`— ${opts.filesWalked !== undefined ? `${opts.filesWalked} files checked, ${s.files_scanned} analysed` : `${s.files_scanned} files analysed`} · ${secs}s · offline scan · your code never left this machine`)}`);
   out.push("");
   const counts = SEVERITY_ORDER.map((sev) => {
     const n = s.by_severity_source[sev] ?? 0;

@@ -2,7 +2,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdtempSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -153,5 +153,29 @@ test("summary separates source from tests", async () => {
     const md = markdown(result);
     assert.ok(md.includes("| High | 1 | 3 |"));
     assert.ok(md.includes("excludes 2 lead(s) in test paths"));
+  });
+});
+
+test("update: version comparison and notice", async () => {
+  const { compareVersions, updateNotice } = await import("../dist/update.js");
+  assert.equal(compareVersions("0.3.1", "0.3.0"), 1);
+  assert.equal(compareVersions("0.3.1", "0.3.1"), 0);
+  assert.equal(compareVersions("0.10.0", "0.9.9"), 1);
+  assert.equal(compareVersions("1.0.0-beta.1", "1.0.0"), -1);
+  assert.equal(compareVersions("0.0.0-stage", "0.3.1"), -1);
+  assert.equal(updateNotice("0.3.1", "0.3.1"), "");
+  assert.equal(updateNotice("0.3.1", null), "");
+  assert.equal(updateNotice("0.3.1", "0.3.0"), "");
+  const notice = updateNotice("0.3.1", "0.4.0");
+  assert.ok(notice.includes("0.4.0") && notice.includes("saas-audit update"));
+});
+
+test("update check never runs outside an interactive terminal", async () => {
+  await withRepo({ "a.py": "eval(x)\n" }, async (root) => {
+    const config = join(root, "config-home");
+    for (const args of [[], ["--format", "pretty"], ["--json"]]) {
+      spawnSync("node", [CLI, root, ...args], { encoding: "utf8", env: { ...process.env, XDG_CONFIG_HOME: config, CI: "" } });
+    }
+    assert.equal(existsSync(join(config, "saas-security-audit", "update-check.json")), false);
   });
 });

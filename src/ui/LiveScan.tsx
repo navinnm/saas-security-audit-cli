@@ -112,7 +112,7 @@ export function LiveScan({ version, target, run, minMs = 1400 }: LiveScanProps) 
       <Box>
         <Text color={BEAM}>◢◤ </Text>
         <Gradient text="SAAS SECURITY AUDIT" />
-        <Text color="gray">{`  v${version}  ·  read-only · offline`}</Text>
+        <Text color="gray">{`  v${version}  ·  read-only · offline scan`}</Text>
       </Box>
       <Text color="gray">{"target  "}<Text color="white">{truncLeft(target, cols - 12)}</Text></Text>
       <Text> </Text>
