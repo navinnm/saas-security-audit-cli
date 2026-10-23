@@ -23,11 +23,46 @@ function findingRow(f: Finding, withEvidence: boolean): string {
   const search = esc(`${f.id} ${f.title} ${f.file} ${controlLabel(f.controls[0])}`.toLowerCase());
   const detail = withEvidence
     ? `<details><summary>Evidence &amp; fix</summary><pre>${esc(f.evidence)}</pre><p class="fix"><b>Fix.</b> ${esc(f.guidance)}</p>
-       <p class="meta">Confidence: ${esc(f.confidence)} · Controls: ${f.controls.map((c) => esc(controlLabel(c))).join(", ")}</p></details>`
+       <p class="meta">Confidence: ${esc(f.confidence)} · Controls: ${f.controls.map((c) => esc(controlLabel(c))).join(", ")}</p>${stdTags(f)}</details>`
     : "";
   return `<tr class="f" data-sev="${k}" data-q="${search}"><td><span class="pill ${k}">${SEV_LABEL[f.severity]}</span></td>
 <td class="mono dim">${esc(f.id)}</td><td class="dim">${esc(controlLabel(f.controls[0]))}</td>
 <td class="mono loc">${esc(f.file)}:${f.line}${ctx}</td><td><div class="issue">${esc(f.title)}</div>${detail}</td></tr>`;
+}
+
+function stdTags(f: Finding): string {
+  const st = f.standards;
+  if (!st) return "";
+  const tags = [st.owasp ? `OWASP ${st.owasp}` : "", ...st.owasp_api.map((a) => `OWASP ${a}`), ...st.owasp_llm.map((l) => `OWASP ${l}`), ...st.cwe].filter(Boolean);
+  return tags.length ? `<p class="tags">${tags.map((t) => `<span class="tag">${esc(t)}</span>`).join("")}</p>` : "";
+}
+
+function vibeHtml(result: Result): string {
+  const found = result.vibe_review.filter((v) => v.status === "found").length;
+  return `<section><h2>Vibe-code review <small>${found} of ${result.vibe_review.length} common AI-codegen mistakes found</small></h2>
+<p class="empty" style="margin:0 0 12px">Mistakes that AI-generated apps make most often. "Not found" means no lead matched; it is not a pass.</p>
+<div class="vibe">${result.vibe_review.map((v) => `<div class="vcheck ${v.status === "found" ? "found" : ""}"><span class="vmark">${v.status === "found" ? "▲" : "○"}</span>
+<span class="vtitle">${esc(v.title)}<small>${esc(v.rules.join(" · "))}</small></span><b>${v.status === "found" ? v.leads : "—"}</b></div>`).join("")}</div></section>`;
+}
+
+function standardsHtml(result: Result): string {
+  const s = result.standards;
+  const table = (title: string, rows: typeof s.owasp_top10_2021) => `<h3>${title}</h3><table><thead><tr><th>ID</th><th>Category</th><th class="num">Leads</th><th>Rules</th></tr></thead><tbody>
+${rows.map((r) => `<tr class="${r.leads ? "hit" : ""}"><td class="mono">${esc(r.id)}</td><td>${esc(r.name)}</td><td class="num">${r.checked ? (r.leads || "–") : "—"}</td>
+<td class="dim">${r.checked ? esc(r.rules.join(", ")) : "not checked by this scanner"}</td></tr>`).join("")}</tbody></table>`;
+  const cwe = s.cwe.length ? `<table><thead><tr><th>CWE</th><th>Weakness</th><th class="num">Leads</th><th>CWE Top 25 (2024)</th></tr></thead><tbody>
+${s.cwe.map((x) => `<tr><td class="mono">${esc(x.id)}</td><td>${esc(x.name)}</td><td class="num">${x.leads}</td><td>${x.top25 ? '<span class="chip warn">Top 25</span>' : ""}</td></tr>`).join("")}</tbody></table>`
+    : `<p class="empty">No CWE-mapped leads in source code.</p>`;
+  const fws = s.frameworks.map((fw) => `<tr><td><b>${esc(fw.name)}</b></td><td>${fw.requirements.length
+    ? fw.requirements.map((r) => `<span class="req"><b>${esc(r.ref)}</b>${r.name ? " " + esc(r.name) : ""} <span class="dim">(${r.leads})</span></span>`).join("")
+    : '<span class="dim">no related leads in source code</span>'}</td></tr>`).join("");
+  return `<section class="standards"><h2>Standards <small>leads in source code</small></h2>
+<p class="empty" style="margin:0 0 6px">${esc(s.note)}</p>
+${table("OWASP Top 10 (2021)", s.owasp_top10_2021)}
+${table("OWASP API Security Top 10 (2023)", s.owasp_api_2023)}
+${table("OWASP Top 10 for LLM Applications (2025)", s.owasp_llm_2025)}
+<h3>CWE</h3>${cwe}
+<h3>Compliance frameworks <small class="dim">related requirements</small></h3><table><tbody>${fws}</tbody></table></section>`;
 }
 
 function findingsTable(findings: Finding[], withEvidence: boolean, id: string): string {
@@ -137,6 +172,14 @@ pre{background:var(--soft);border:1px solid var(--line);border-radius:8px;paddin
 .notes{color:var(--dim);margin:0;padding-left:18px}
 footer{color:var(--dim);font-size:12px;text-align:center;padding:0 0 40px}
 .hidden{display:none}
+.tags{margin:6px 0 0;display:flex;flex-wrap:wrap;gap:5px}.tag{font:11px ui-monospace,Menlo,monospace;background:var(--soft);border:1px solid var(--line);border-radius:5px;padding:1px 6px;color:var(--dim)}
+.vibe{display:grid;grid-template-columns:1fr 1fr;gap:8px 18px}.vcheck{display:flex;gap:10px;align-items:flex-start;padding:9px 12px;border:1px solid var(--line);border-radius:10px;background:var(--soft)}
+.vcheck .vmark{color:var(--dim)}.vcheck.found{border-color:#f5c48a;background:#fff7ed}.vcheck.found .vmark,.vcheck.found b{color:var(--high)}
+.vtitle{flex:1;font-weight:550}.vtitle small{display:block;font-weight:400;color:var(--dim);font-size:11.5px;margin-top:2px}.vcheck b{font-variant-numeric:tabular-nums}
+@media (prefers-color-scheme:dark){.vcheck.found{background:#2a1d0c;border-color:#5a3a12}}
+.standards h3{font-size:13.5px;margin:18px 0 8px}.standards tr.hit td:first-child{color:var(--high);font-weight:700}
+.req{display:inline-block;margin:2px 14px 2px 0}
+@media (max-width:760px){.vibe{grid-template-columns:1fr}}
 @media (max-width:760px){.cards{grid-template-columns:repeat(3,1fr)}.findings td:nth-child(3),.findings th:nth-child(3){display:none}.search{min-width:0;width:100%}}
 @media print{
  @page{size:A4;margin:14mm}
@@ -180,6 +223,10 @@ ${findingsTable(v.hidden, true, "test-findings")}</details></section>` : ""}
 <tbody>${coverage}</tbody></table>
 <p class="empty" style="margin-top:10px">PASS is never automatic: a control passes only when enforcement is located in code and proven by a negative test.</p>
 </section>
+
+${vibeHtml(result)}
+
+${standardsHtml(result)}
 
 <section><h2>Inventory &amp; recommended tools</h2>
 <div class="facts" style="margin:0 0 12px"><span>Manifests: <b>${inv.manifests.map(esc).join(", ") || "none found"}</b></span><span>Test files: <b>${inv.test_files}</b></span><span>CI files: <b>${inv.ci_files.map(esc).join(", ") || "none found"}</b></span></div>

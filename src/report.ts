@@ -3,6 +3,7 @@ import { accessSync, constants } from "node:fs";
 import { delimiter, join } from "node:path";
 import { CONTROLS, R, RULE_TITLES, SCHEMA_VERSION, SEVERITY_RANK, VERSION } from "./rules.js";
 import type { Finding, ScanState } from "./engine.js";
+import { markdownStandards, standardsSummary, standardsTag, vibeSummary, type StandardsSummary, type VibeCheck } from "./standards.js";
 
 const cmpStr = (a: string, b: string) => (a < b ? -1 : a > b ? 1 : 0);
 
@@ -87,6 +88,8 @@ export function buildResult(root: string, findings: Finding[], state: ScanState,
       security_packages: Object.keys(state.packages).sort(cmpStr)
         .map((p) => ({ package: p, control: state.packages[p][0], role: state.packages[p][1] })),
       env_files: state.env_files, test_files: state.test_files, ci_files: state.ci_files },
+    standards: standardsSummary(findings),
+    vibe_review: vibeSummary(findings),
     limitations: [
       "Regex heuristics only; false positives and false negatives are expected.",
       "No control is automatically marked PASS; signals show where to look, not that a control is enforced.",
@@ -109,6 +112,7 @@ export interface Result {
     recommended_tools: { command: string; purpose: string; installed: boolean; needs_network: boolean }[];
     security_packages: { package: string; control: number; role: string }[];
     env_files: { file: string; gitignored: boolean; example: boolean }[]; test_files: number; ci_files: string[] };
+  standards: StandardsSummary; vibe_review: VibeCheck[];
   limitations: string[]; comparison?: Comparison;
   /** Present when the user stopped the scan early. */
   partial?: { stopped_at_percent: number };
@@ -148,7 +152,7 @@ export function markdown(result: Result): string {
         for (const f of items) {
           const ctx = f.context === "source" ? "" : ` _(${f.context})_`;
           const label = f.title !== heading ? ` ${f.title}` : "";
-          out.push(`- ${f.severity}${label} — \`${f.file}:${f.line}\`${ctx} — \`${mdEscape(f.evidence)}\``);
+          out.push(`- ${f.severity}${label} — \`${f.file}:${f.line}\`${ctx} — \`${mdEscape(f.evidence)}\`${standardsTag(f)}`);
         }
         out.push("");
       }
@@ -166,6 +170,7 @@ export function markdown(result: Result): string {
       : (sig ? sig.locations.slice(0, 3) : []).map((l) => `\`${l}\``).join(", ");
     out.push(`| ${c.id} | ${c.name} | NOT VERIFIED | ${c.lead_count} | ${sigText} | ${look} |`);
   }
+  out.push(...markdownStandards(result));
   const inv = result.inventory;
   out.push("", "## Inventory", "",
     `- Dependency manifests: ${inv.manifests.map((m) => `\`${m}\``).join(", ") || "none found"}`,

@@ -1,6 +1,6 @@
 # saas-security-audit — SaaS Security Scanner CLI
 
-**Scan any SaaS codebase in seconds for the security bugs that leak customer data:** cross-tenant access, IDOR/BOLA, missing Supabase row-level security (RLS), leaked secrets, SQL injection, permissive CORS, unsigned webhooks, SSRF, weak JWT sessions, and AI/LLM prompt injection. Every finding maps to one of 22 OWASP-aligned controls. It runs locally and read-only; the scan never touches the network.
+**Scan any SaaS codebase in seconds for the security bugs that leak customer data:** cross-tenant access, IDOR/BOLA, missing Supabase row-level security (RLS), leaked secrets, SQL injection, permissive CORS, unsigned webhooks, SSRF, weak JWT sessions, and AI/LLM prompt injection. Every finding is tagged with **OWASP Top 10, OWASP API Top 10, OWASP LLM Top 10 and CWE** IDs, mapped to 22 SaaS security controls, and related to **ASVS, PCI DSS, SOC 2, ISO 27001 and NIST SSDF** requirements. A built-in **vibe-code review** flags the mistakes AI-generated apps make most often. It runs locally and read-only; the scan never touches the network.
 
 ```bash
 npx saas-security-audit
@@ -44,6 +44,8 @@ Generic linters miss the bugs that hurt SaaS companies most: **authorization bug
 | `jwt.verify(token, secret)` with no algorithm pin, `expiresIn: "365d"` | JWT sessions |
 | `` systemPrompt = `…${req.body.notes}` ``, model output passed to `db.query()` | AI / LLM |
 | Live `sk_live_` / AWS keys in `.env.production`, env files not in `.gitignore` | Secret exposure |
+| `if (user.role === 'admin')` only in the UI, tokens in `localStorage`, `// TODO: add auth` | Vibe-code review |
+| `new OpenAI({ dangerouslyAllowBrowser: true })`, Stripe secret key in browser code | Secrets in the frontend |
 
 It supports JavaScript/TypeScript (Next.js, Express, NestJS, Fastify, Hono), Python (Django, Flask, FastAPI), Ruby (Rails), PHP (Laravel), Go, Java/Kotlin, C#, SQL migrations, Terraform, and Firebase rules.
 
@@ -82,6 +84,22 @@ Findings in test files and gitignored local env files aren't counted in the tota
 
 Prompts only appear in an interactive terminal. In CI or when piped, the CLI prints compact plain text with no colour, no spinner and no prompts, and never waits for input.
 
+### Standards and vibe-code review
+
+Every finding carries its standards, and every report (terminal, PDF, HTML, JSON, Markdown) includes:
+
+| Standard | What you get |
+|---|---|
+| **OWASP Top 10 (2021)** | A01–A10 with leads per category and the rules that check it |
+| **OWASP API Security Top 10 (2023)** | API1–API10; categories no rule can check are marked "not checked" instead of passing |
+| **OWASP Top 10 for LLM Applications (2025)** | Prompt injection (LLM01), improper output handling (LLM05), secrets in the browser (LLM02) |
+| **CWE**, with **CWE Top 25 (2024)** flags | Exact weakness IDs, e.g. CWE-89 SQL Injection, CWE-862 Missing Authorization |
+| **OWASP ASVS 4.0.3, PCI DSS 4.0, SOC 2, ISO/IEC 27001:2022, NIST SSDF** | Related requirements per lead (e.g. PCI DSS 6.2.4, 8.6.2; ISO A.8.28; SSDF PW.5) |
+
+The **vibe-code review** checks the 12 mistakes AI-generated ("vibe-coded") apps make most often: secret keys reachable from the browser, tables open without RLS, authorization only in the UI, security left as a TODO, tokens in localStorage, mass assignment, unsigned webhooks, wide-open CORS, hard-coded credentials, string-built SQL/shell, untrusted text in LLM prompts, and weak sessions.
+
+> Mappings are indicative. A code scan alone does not demonstrate compliance with PCI DSS, SOC 2, ISO/IEC 27001, NIST SSDF or OWASP ASVS, and "not found" is never reported as "passed".
+
 ### Reports: PDF, HTML, JSON, Markdown
 
 ```bash
@@ -96,7 +114,7 @@ saas-audit --output security-report.pdf --output security-report.html
 
 ```yaml
 - name: SaaS security scan
-  run: npx saas-security-audit@0.5.3 --fail-on high --format github --output security-report.md
+  run: npx saas-security-audit@0.6.0 --fail-on high --format github --output security-report.md
 ```
 
 `--format github` adds inline annotations on the pull request (errors for critical and high, warnings for medium), followed by the plain-text summary.

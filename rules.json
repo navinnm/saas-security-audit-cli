@@ -1,6 +1,6 @@
 {
  "generated_from": "saas-security-audit plugin scripts/scan.py",
- "version": "0.3.1",
+ "version": "0.4.0",
  "schema_version": 3,
  "controls": [
   "Row-level security and tenant isolation",
@@ -1633,6 +1633,152 @@
      "exts": null
     }
    ]
+  },
+  {
+   "id": "SEC040",
+   "title": "Authorization decided in client-side code",
+   "severity": "Medium",
+   "confidence": "low",
+   "controls": [
+    3,
+    14
+   ],
+   "scope": [
+    "code"
+   ],
+   "skip_comments": true,
+   "guidance": "UI checks are for display only; enforce the same rule on the server for every request.",
+   "patterns": [
+    {
+     "source": "\\blocalStorage\\.getItem\\(\\s*[\"'](?:is_?admin|role|user_?role|permissions?)[\"']",
+     "flags": "i",
+     "exts": [
+      ".cjs",
+      ".js",
+      ".jsx",
+      ".mjs",
+      ".svelte",
+      ".ts",
+      ".tsx",
+      ".vue"
+     ]
+    },
+    {
+     "source": "\\b(?:user|session|currentUser|profile)\\??\\.(?:role|isAdmin|is_admin)\\s*===?\\s*[\"']?(?:admin|owner|superuser|true)\\b",
+     "flags": "i",
+     "exts": [
+      ".jsx",
+      ".svelte",
+      ".tsx",
+      ".vue"
+     ]
+    }
+   ]
+  },
+  {
+   "id": "SEC041",
+   "title": "Auth token stored in localStorage",
+   "severity": "Medium",
+   "confidence": "medium",
+   "controls": [
+    21,
+    8
+   ],
+   "scope": [
+    "code"
+   ],
+   "skip_comments": true,
+   "guidance": "Any XSS can read localStorage. Keep session tokens in HttpOnly, Secure, SameSite cookies.",
+   "patterns": [
+    {
+     "source": "\\blocalStorage\\.setItem\\(\\s*[\"'][\\w.-]*(?:token|jwt|session|auth)[\\w.-]*[\"']",
+     "flags": "i",
+     "exts": [
+      ".cjs",
+      ".js",
+      ".jsx",
+      ".mjs",
+      ".svelte",
+      ".ts",
+      ".tsx",
+      ".vue"
+     ]
+    }
+   ]
+  },
+  {
+   "id": "SEC042",
+   "title": "Secret API used directly from the browser",
+   "severity": "High",
+   "confidence": "high",
+   "controls": [
+    15,
+    22
+   ],
+   "scope": [
+    "code"
+   ],
+   "skip_comments": true,
+   "guidance": "Calling OpenAI/Anthropic or Stripe secret APIs from the browser ships your secret key to every visitor. Proxy through a server route.",
+   "patterns": [
+    {
+     "source": "\\bdangerouslyAllowBrowser\\s*:\\s*true\\b",
+     "flags": "",
+     "exts": [
+      ".cjs",
+      ".js",
+      ".jsx",
+      ".mjs",
+      ".svelte",
+      ".ts",
+      ".tsx",
+      ".vue"
+     ]
+    },
+    {
+     "source": "\\bnew\\s+Stripe\\(\\s*[\"']sk_",
+     "flags": "",
+     "exts": [
+      ".cjs",
+      ".js",
+      ".jsx",
+      ".mjs",
+      ".svelte",
+      ".ts",
+      ".tsx",
+      ".vue"
+     ]
+    }
+   ]
+  },
+  {
+   "id": "SEC043",
+   "title": "Security left as a TODO",
+   "severity": "Medium",
+   "confidence": "low",
+   "controls": [
+    2,
+    3
+   ],
+   "scope": [
+    "code",
+    "config",
+    "env"
+   ],
+   "skip_comments": false,
+   "guidance": "Resolve before release: these comments usually mark a route or check that is still open.",
+   "patterns": [
+    {
+     "source": "(?:#|//|/\\*|--)\\s*(?:TODO|FIXME|HACK|XXX)\\b[^\\n]{0,60}\\b(?:auth|authori[sz]|permission|access control|rate.?limit|validat|sanitiz|security|csrf|rls)",
+     "flags": "i",
+     "exts": null
+    },
+    {
+     "source": "(?:#|//)\\s*(?:skip|bypass|disable[ds]?)\\s+(?:auth|authentication|authorization|security|csrf|rls)\\b",
+     "flags": "i",
+     "exts": null
+    }
+   ]
   }
  ],
  "secret_formats": [
@@ -2181,6 +2327,10 @@
   "SEC035": "Untrusted input interpolated into an LLM system prompt",
   "SEC036": "LLM output passed to an execution or query sink",
   "SEC037": "Long-lived token or session lifetime",
+  "SEC040": "Authorization decided in client-side code",
+  "SEC041": "Auth token stored in localStorage",
+  "SEC042": "Secret API used directly from the browser",
+  "SEC043": "Security left as a TODO",
   "SEC001": "Possible hardcoded credential",
   "SEC012": "Known-format secret",
   "SEC030": "Table without row-level security",
@@ -2191,6 +2341,870 @@
   "SEC038": "RLS enabled but no policies defined",
   "SEC039": "Prisma model without a tenant key in a multi-tenant schema"
  },
+ "standards": {
+  "SEC001": {
+   "owasp": "A07",
+   "api": [],
+   "llm": [],
+   "cwe": [
+    "CWE-798"
+   ],
+   "kind": "secrets"
+  },
+  "SEC002": {
+   "owasp": "A03",
+   "api": [],
+   "llm": [],
+   "cwe": [
+    "CWE-95"
+   ],
+   "kind": "injection"
+  },
+  "SEC003": {
+   "owasp": "A03",
+   "api": [],
+   "llm": [],
+   "cwe": [
+    "CWE-89"
+   ],
+   "kind": "injection"
+  },
+  "SEC004": {
+   "owasp": "A05",
+   "api": [
+    "API8"
+   ],
+   "llm": [],
+   "cwe": [
+    "CWE-489"
+   ],
+   "kind": "config"
+  },
+  "SEC005": {
+   "owasp": "A05",
+   "api": [
+    "API8"
+   ],
+   "llm": [],
+   "cwe": [
+    "CWE-942"
+   ],
+   "kind": "config"
+  },
+  "SEC006": {
+   "owasp": "A02",
+   "api": [
+    "API8"
+   ],
+   "llm": [],
+   "cwe": [
+    "CWE-319"
+   ],
+   "kind": "transport"
+  },
+  "SEC007": {
+   "owasp": "A05",
+   "api": [
+    "API8"
+   ],
+   "llm": [],
+   "cwe": [
+    "CWE-614",
+    "CWE-1004"
+   ],
+   "kind": "transport"
+  },
+  "SEC011": {
+   "owasp": "A09",
+   "api": [],
+   "llm": [],
+   "cwe": [
+    "CWE-532"
+   ],
+   "kind": "logging"
+  },
+  "SEC012": {
+   "owasp": "A07",
+   "api": [],
+   "llm": [],
+   "cwe": [
+    "CWE-798"
+   ],
+   "kind": "secrets"
+  },
+  "SEC013": {
+   "owasp": "A03",
+   "api": [],
+   "llm": [],
+   "cwe": [
+    "CWE-78"
+   ],
+   "kind": "injection"
+  },
+  "SEC014": {
+   "owasp": "A08",
+   "api": [],
+   "llm": [],
+   "cwe": [
+    "CWE-502"
+   ],
+   "kind": "integrity"
+  },
+  "SEC015": {
+   "owasp": "A03",
+   "api": [],
+   "llm": [],
+   "cwe": [
+    "CWE-79"
+   ],
+   "kind": "injection"
+  },
+  "SEC016": {
+   "owasp": "A02",
+   "api": [
+    "API8"
+   ],
+   "llm": [],
+   "cwe": [
+    "CWE-295"
+   ],
+   "kind": "transport"
+  },
+  "SEC017": {
+   "owasp": "A07",
+   "api": [
+    "API2"
+   ],
+   "llm": [],
+   "cwe": [
+    "CWE-347"
+   ],
+   "kind": "auth"
+  },
+  "SEC018": {
+   "owasp": "A01",
+   "api": [],
+   "llm": [],
+   "cwe": [
+    "CWE-352"
+   ],
+   "kind": "access"
+  },
+  "SEC019": {
+   "owasp": "A08",
+   "api": [
+    "API3"
+   ],
+   "llm": [],
+   "cwe": [
+    "CWE-915"
+   ],
+   "kind": "access"
+  },
+  "SEC020": {
+   "owasp": "A10",
+   "api": [
+    "API7"
+   ],
+   "llm": [],
+   "cwe": [
+    "CWE-918"
+   ],
+   "kind": "ssrf"
+  },
+  "SEC021": {
+   "owasp": "A02",
+   "api": [],
+   "llm": [],
+   "cwe": [
+    "CWE-338"
+   ],
+   "kind": "crypto"
+  },
+  "SEC022": {
+   "owasp": "A01",
+   "api": [
+    "API1"
+   ],
+   "llm": [],
+   "cwe": [
+    "CWE-863"
+   ],
+   "kind": "access"
+  },
+  "SEC023": {
+   "owasp": "A01",
+   "api": [],
+   "llm": [],
+   "cwe": [
+    "CWE-200"
+   ],
+   "kind": "secrets"
+  },
+  "SEC024": {
+   "owasp": "A02",
+   "api": [],
+   "llm": [],
+   "cwe": [
+    "CWE-916"
+   ],
+   "kind": "crypto"
+  },
+  "SEC025": {
+   "owasp": "A04",
+   "api": [
+    "API8"
+   ],
+   "llm": [],
+   "cwe": [
+    "CWE-209"
+   ],
+   "kind": "design"
+  },
+  "SEC026": {
+   "owasp": "A01",
+   "api": [],
+   "llm": [],
+   "cwe": [
+    "CWE-284"
+   ],
+   "kind": "access"
+  },
+  "SEC027": {
+   "owasp": "A01",
+   "api": [],
+   "llm": [],
+   "cwe": [
+    "CWE-601"
+   ],
+   "kind": "access"
+  },
+  "SEC028": {
+   "owasp": "A01",
+   "api": [],
+   "llm": [],
+   "cwe": [
+    "CWE-22"
+   ],
+   "kind": "access"
+  },
+  "SEC029": {
+   "owasp": "A03",
+   "api": [],
+   "llm": [],
+   "cwe": [
+    "CWE-943"
+   ],
+   "kind": "injection"
+  },
+  "SEC030": {
+   "owasp": "A01",
+   "api": [
+    "API1"
+   ],
+   "llm": [],
+   "cwe": [
+    "CWE-862"
+   ],
+   "kind": "access"
+  },
+  "SEC031": {
+   "owasp": "A08",
+   "api": [
+    "API10"
+   ],
+   "llm": [],
+   "cwe": [
+    "CWE-345"
+   ],
+   "kind": "integrity"
+  },
+  "SEC032": {
+   "owasp": "A01",
+   "api": [],
+   "llm": [],
+   "cwe": [
+    "CWE-538"
+   ],
+   "kind": "secrets"
+  },
+  "SEC033": {
+   "owasp": "A06",
+   "api": [],
+   "llm": [],
+   "cwe": [
+    "CWE-1104"
+   ],
+   "kind": "components"
+  },
+  "SEC034": {
+   "owasp": "A07",
+   "api": [
+    "API10"
+   ],
+   "llm": [],
+   "cwe": [
+    "CWE-294"
+   ],
+   "kind": "integrity"
+  },
+  "SEC035": {
+   "owasp": "A03",
+   "api": [],
+   "llm": [
+    "LLM01"
+   ],
+   "cwe": [
+    "CWE-1427"
+   ],
+   "kind": "ai"
+  },
+  "SEC036": {
+   "owasp": "A03",
+   "api": [],
+   "llm": [
+    "LLM05"
+   ],
+   "cwe": [
+    "CWE-1426"
+   ],
+   "kind": "ai"
+  },
+  "SEC037": {
+   "owasp": "A07",
+   "api": [
+    "API2"
+   ],
+   "llm": [],
+   "cwe": [
+    "CWE-613"
+   ],
+   "kind": "auth"
+  },
+  "SEC038": {
+   "owasp": "A01",
+   "api": [
+    "API1"
+   ],
+   "llm": [],
+   "cwe": [
+    "CWE-284"
+   ],
+   "kind": "access"
+  },
+  "SEC039": {
+   "owasp": "A01",
+   "api": [
+    "API1"
+   ],
+   "llm": [],
+   "cwe": [
+    "CWE-639"
+   ],
+   "kind": "access"
+  },
+  "SEC040": {
+   "owasp": "A04",
+   "api": [
+    "API5"
+   ],
+   "llm": [],
+   "cwe": [
+    "CWE-602"
+   ],
+   "kind": "access"
+  },
+  "SEC041": {
+   "owasp": "A01",
+   "api": [],
+   "llm": [],
+   "cwe": [
+    "CWE-922"
+   ],
+   "kind": "auth"
+  },
+  "SEC042": {
+   "owasp": "A01",
+   "api": [],
+   "llm": [
+    "LLM02"
+   ],
+   "cwe": [
+    "CWE-200"
+   ],
+   "kind": "secrets"
+  },
+  "SEC043": {
+   "owasp": "A04",
+   "api": [],
+   "llm": [],
+   "cwe": [
+    "CWE-546"
+   ],
+   "kind": "design"
+  }
+ },
+ "owasp_top10": {
+  "A01": "Broken Access Control",
+  "A02": "Cryptographic Failures",
+  "A03": "Injection",
+  "A04": "Insecure Design",
+  "A05": "Security Misconfiguration",
+  "A06": "Vulnerable and Outdated Components",
+  "A07": "Identification and Authentication Failures",
+  "A08": "Software and Data Integrity Failures",
+  "A09": "Security Logging and Monitoring Failures",
+  "A10": "Server-Side Request Forgery"
+ },
+ "owasp_api": {
+  "API1": "Broken Object Level Authorization",
+  "API2": "Broken Authentication",
+  "API3": "Broken Object Property Level Authorization",
+  "API4": "Unrestricted Resource Consumption",
+  "API5": "Broken Function Level Authorization",
+  "API6": "Unrestricted Access to Sensitive Business Flows",
+  "API7": "Server Side Request Forgery",
+  "API8": "Security Misconfiguration",
+  "API9": "Improper Inventory Management",
+  "API10": "Unsafe Consumption of APIs"
+ },
+ "owasp_llm": {
+  "LLM01": "Prompt Injection",
+  "LLM02": "Sensitive Information Disclosure",
+  "LLM03": "Supply Chain",
+  "LLM04": "Data and Model Poisoning",
+  "LLM05": "Improper Output Handling",
+  "LLM06": "Excessive Agency",
+  "LLM07": "System Prompt Leakage",
+  "LLM08": "Vector and Embedding Weaknesses",
+  "LLM09": "Misinformation",
+  "LLM10": "Unbounded Consumption"
+ },
+ "cwe_names": {
+  "CWE-22": "Path Traversal",
+  "CWE-78": "OS Command Injection",
+  "CWE-79": "Cross-site Scripting",
+  "CWE-89": "SQL Injection",
+  "CWE-95": "Eval Injection",
+  "CWE-200": "Exposure of Sensitive Information",
+  "CWE-209": "Error Message with Sensitive Information",
+  "CWE-284": "Improper Access Control",
+  "CWE-294": "Authentication Bypass by Capture-replay",
+  "CWE-295": "Improper Certificate Validation",
+  "CWE-319": "Cleartext Transmission",
+  "CWE-338": "Weak PRNG",
+  "CWE-345": "Insufficient Verification of Data Authenticity",
+  "CWE-347": "Improper Verification of Cryptographic Signature",
+  "CWE-352": "Cross-Site Request Forgery",
+  "CWE-489": "Active Debug Code",
+  "CWE-502": "Deserialization of Untrusted Data",
+  "CWE-532": "Sensitive Information in Log File",
+  "CWE-538": "Sensitive Information in Accessible File",
+  "CWE-546": "Suspicious Comment",
+  "CWE-601": "Open Redirect",
+  "CWE-602": "Client-Side Enforcement of Server-Side Security",
+  "CWE-613": "Insufficient Session Expiration",
+  "CWE-614": "Sensitive Cookie Without Secure",
+  "CWE-639": "Authorization Bypass Through User-Controlled Key",
+  "CWE-798": "Hard-coded Credentials",
+  "CWE-862": "Missing Authorization",
+  "CWE-863": "Incorrect Authorization",
+  "CWE-915": "Mass Assignment",
+  "CWE-916": "Weak Password Hash",
+  "CWE-918": "Server-Side Request Forgery",
+  "CWE-922": "Insecure Storage of Sensitive Information",
+  "CWE-942": "Permissive Cross-domain Policy",
+  "CWE-943": "NoSQL/Query Injection",
+  "CWE-1004": "Sensitive Cookie Without HttpOnly",
+  "CWE-1104": "Unmaintained Third-party Components",
+  "CWE-1426": "Improper Validation of Generative AI Output",
+  "CWE-1427": "Improper Neutralization of Input Used for LLM Prompting"
+ },
+ "cwe_top25_2024": [
+  "CWE-20",
+  "CWE-22",
+  "CWE-77",
+  "CWE-78",
+  "CWE-79",
+  "CWE-89",
+  "CWE-94",
+  "CWE-119",
+  "CWE-125",
+  "CWE-190",
+  "CWE-200",
+  "CWE-269",
+  "CWE-287",
+  "CWE-306",
+  "CWE-352",
+  "CWE-400",
+  "CWE-416",
+  "CWE-434",
+  "CWE-476",
+  "CWE-502",
+  "CWE-787",
+  "CWE-798",
+  "CWE-862",
+  "CWE-863",
+  "CWE-918"
+ ],
+ "frameworks": [
+  {
+   "id": "asvs",
+   "name": "OWASP ASVS 4.0.3",
+   "mapping": {
+    "access": [
+     "V4 Access Control"
+    ],
+    "crypto": [
+     "V6 Stored Cryptography"
+    ],
+    "secrets": [
+     "V6 Stored Cryptography",
+     "V14 Configuration"
+    ],
+    "transport": [
+     "V9 Communication"
+    ],
+    "injection": [
+     "V5 Validation, Sanitization and Encoding"
+    ],
+    "design": [
+     "V1 Architecture, Design and Threat Modeling"
+    ],
+    "config": [
+     "V14 Configuration"
+    ],
+    "components": [
+     "V14 Configuration"
+    ],
+    "auth": [
+     "V2 Authentication",
+     "V3 Session Management"
+    ],
+    "integrity": [
+     "V13 API and Web Service"
+    ],
+    "logging": [
+     "V7 Error Handling and Logging"
+    ],
+    "ssrf": [
+     "V12 Files and Resources"
+    ],
+    "ai": [
+     "V5 Validation, Sanitization and Encoding"
+    ]
+   }
+  },
+  {
+   "id": "pci_dss",
+   "name": "PCI DSS 4.0",
+   "mapping": {
+    "access": [
+     "6.2.4"
+    ],
+    "crypto": [
+     "6.2.4"
+    ],
+    "secrets": [
+     "8.6.2"
+    ],
+    "transport": [
+     "4.2.1"
+    ],
+    "injection": [
+     "6.2.4"
+    ],
+    "design": [
+     "6.2.4"
+    ],
+    "config": [
+     "6.2.4"
+    ],
+    "components": [
+     "6.3.2"
+    ],
+    "auth": [
+     "8.3"
+    ],
+    "integrity": [
+     "6.2.4"
+    ],
+    "logging": [
+     "10.2"
+    ],
+    "ssrf": [
+     "6.2.4"
+    ],
+    "ai": [
+     "6.2.4"
+    ]
+   }
+  },
+  {
+   "id": "soc2",
+   "name": "SOC 2 (Trust Services Criteria)",
+   "mapping": {
+    "access": [
+     "CC6.1"
+    ],
+    "crypto": [
+     "CC6.1"
+    ],
+    "secrets": [
+     "CC6.1"
+    ],
+    "transport": [
+     "CC6.7"
+    ],
+    "injection": [
+     "CC6.6"
+    ],
+    "design": [
+     "CC8.1"
+    ],
+    "config": [
+     "CC7.1"
+    ],
+    "components": [
+     "CC7.1"
+    ],
+    "auth": [
+     "CC6.1"
+    ],
+    "integrity": [
+     "CC6.6"
+    ],
+    "logging": [
+     "CC7.2"
+    ],
+    "ssrf": [
+     "CC6.6"
+    ],
+    "ai": [
+     "CC6.6"
+    ]
+   }
+  },
+  {
+   "id": "iso27001",
+   "name": "ISO/IEC 27001:2022 Annex A",
+   "mapping": {
+    "access": [
+     "A.8.3",
+     "A.8.28"
+    ],
+    "crypto": [
+     "A.8.24"
+    ],
+    "secrets": [
+     "A.8.24",
+     "A.8.28"
+    ],
+    "transport": [
+     "A.8.24"
+    ],
+    "injection": [
+     "A.8.28"
+    ],
+    "design": [
+     "A.8.27"
+    ],
+    "config": [
+     "A.8.9"
+    ],
+    "components": [
+     "A.8.8"
+    ],
+    "auth": [
+     "A.8.5"
+    ],
+    "integrity": [
+     "A.8.28"
+    ],
+    "logging": [
+     "A.8.15"
+    ],
+    "ssrf": [
+     "A.8.28"
+    ],
+    "ai": [
+     "A.8.28"
+    ]
+   }
+  },
+  {
+   "id": "nist_ssdf",
+   "name": "NIST SSDF (SP 800-218)",
+   "mapping": {
+    "access": [
+     "PW.5"
+    ],
+    "crypto": [
+     "PW.5"
+    ],
+    "secrets": [
+     "PW.5"
+    ],
+    "transport": [
+     "PW.5"
+    ],
+    "injection": [
+     "PW.5"
+    ],
+    "design": [
+     "PW.1"
+    ],
+    "config": [
+     "PW.9"
+    ],
+    "components": [
+     "PW.4",
+     "RV.1"
+    ],
+    "auth": [
+     "PW.5"
+    ],
+    "integrity": [
+     "PW.5"
+    ],
+    "logging": [
+     "PW.5"
+    ],
+    "ssrf": [
+     "PW.5"
+    ],
+    "ai": [
+     "PW.5"
+    ]
+   }
+  }
+ ],
+ "framework_ref_names": {
+  "6.2.4": "Engineering techniques prevent common software attacks",
+  "8.6.2": "No hard-coded passwords in code or config",
+  "4.2.1": "Strong cryptography for data in transit",
+  "6.3.2": "Inventory of bespoke and third-party components",
+  "8.3": "Strong authentication",
+  "10.2": "Audit logs",
+  "CC6.1": "Logical access security",
+  "CC6.6": "Protection against external threats",
+  "CC6.7": "Restricted transmission",
+  "CC7.1": "Detection of vulnerabilities and misconfigurations",
+  "CC7.2": "Monitoring for anomalies",
+  "CC8.1": "Change management",
+  "A.8.3": "Information access restriction",
+  "A.8.5": "Secure authentication",
+  "A.8.8": "Management of technical vulnerabilities",
+  "A.8.9": "Configuration management",
+  "A.8.15": "Logging",
+  "A.8.24": "Use of cryptography",
+  "A.8.27": "Secure system architecture and engineering principles",
+  "A.8.28": "Secure coding",
+  "PW.1": "Design software to meet security requirements",
+  "PW.4": "Reuse existing, well-secured software",
+  "PW.5": "Adhere to secure coding practices",
+  "PW.9": "Secure settings by default",
+  "RV.1": "Identify and confirm vulnerabilities"
+ },
+ "standards_note": "Mappings are indicative: they show which requirements a lead relates to. A code scan alone does not demonstrate compliance with PCI DSS, SOC 2, ISO/IEC 27001, NIST SSDF or OWASP ASVS.",
+ "vibe_checks": [
+  {
+   "id": "V1",
+   "title": "Secret keys reachable from the browser",
+   "rules": [
+    "SEC023",
+    "SEC042",
+    "SEC012"
+   ]
+  },
+  {
+   "id": "V2",
+   "title": "Tables or data rules open to every user",
+   "rules": [
+    "SEC030",
+    "SEC022",
+    "SEC038",
+    "SEC039"
+   ]
+  },
+  {
+   "id": "V3",
+   "title": "Authorization only in the UI",
+   "rules": [
+    "SEC040"
+   ]
+  },
+  {
+   "id": "V4",
+   "title": "Security left as a TODO",
+   "rules": [
+    "SEC043"
+   ]
+  },
+  {
+   "id": "V5",
+   "title": "Auth tokens in localStorage",
+   "rules": [
+    "SEC041"
+   ]
+  },
+  {
+   "id": "V6",
+   "title": "Client can set protected fields",
+   "rules": [
+    "SEC019"
+   ]
+  },
+  {
+   "id": "V7",
+   "title": "Unsigned or replayable webhooks",
+   "rules": [
+    "SEC031",
+    "SEC034"
+   ]
+  },
+  {
+   "id": "V8",
+   "title": "Wide-open CORS",
+   "rules": [
+    "SEC005"
+   ]
+  },
+  {
+   "id": "V9",
+   "title": "Hard-coded credentials or exposed .env",
+   "rules": [
+    "SEC001",
+    "SEC032"
+   ]
+  },
+  {
+   "id": "V10",
+   "title": "SQL, NoSQL or shell built from strings",
+   "rules": [
+    "SEC003",
+    "SEC029",
+    "SEC013"
+   ]
+  },
+  {
+   "id": "V11",
+   "title": "Untrusted text in prompts or run as code",
+   "rules": [
+    "SEC035",
+    "SEC036"
+   ]
+  },
+  {
+   "id": "V12",
+   "title": "Weak sessions or guessable tokens",
+   "rules": [
+    "SEC017",
+    "SEC037",
+    "SEC021"
+   ]
+  }
+ ],
  "secret_guidance": {
   "SEC001": "Confirm whether the value is real. If so, rotate it, remove it from history, and load it from a secret store.",
   "SEC012": "Treat as exposed: rotate first, then purge from git history and move to a secret store."

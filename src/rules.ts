@@ -34,6 +34,16 @@ interface RawRules {
   control_signals: Record<string, Rx>;
   security_packages: Record<string, { control: number; role: string }>;
   rule_titles: Record<string, string>;
+  standards: Record<string, { owasp: string | null; api: string[]; llm: string[]; cwe: string[]; kind: string | null }>;
+  owasp_top10: Record<string, string>;
+  owasp_api: Record<string, string>;
+  owasp_llm: Record<string, string>;
+  cwe_names: Record<string, string>;
+  cwe_top25_2024: string[];
+  frameworks: { id: string; name: string; mapping: Record<string, string[]> }[];
+  framework_ref_names: Record<string, string>;
+  standards_note: string;
+  vibe_checks: { id: string; title: string; rules: string[] }[];
   secret_guidance: Record<string, string>;
 }
 

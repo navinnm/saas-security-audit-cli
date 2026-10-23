@@ -311,7 +311,8 @@ function findingsTable(L: Layout, findings: Finding[], withEvidence: boolean): v
     const locText = `${f.file}:${f.line}${f.context === "source" ? "" : `  (${f.context})`}`;
     const locLines = wrap(locText, "F3", 7.5, locW - 6, 3);
     const issueLines = wrap(f.title, "F2", 8.5, issueW - 6, 3);
-    const metaLine = `C${f.controls[0]} ${CONTROL_SHORT[f.controls[0] - 1]} · confidence ${f.confidence}`;
+    const tags = f.standards ? [f.standards.owasp ?? "", ...f.standards.owasp_api, ...f.standards.owasp_llm, ...f.standards.cwe].filter(Boolean) : [];
+    const metaLine = `C${f.controls[0]} ${CONTROL_SHORT[f.controls[0] - 1]} · confidence ${f.confidence}${tags.length ? " · " + tags.join(" · ") : ""}`;
     const evLines = withEvidence ? wrap(f.evidence, "F3", 7, issueW - 16, 3) : [];
     const leftH = locLines.length * 10;
     const rightH = issueLines.length * 11 + 11 + (evLines.length ? evLines.length * 9 + 8 : 0);
@@ -478,6 +479,73 @@ export function renderPdf(result: Result, opts: { includeTests?: boolean; now?: 
     "PASS is never automatic: a control passes only when enforcement is located in code and proven by a negative test. Signals show where enforcement probably lives.");
   const rows = [...v.coverage.leads, ...v.coverage.noSignals, ...v.coverage.notVerified].sort((a, b) => a.id - b.id);
   coverageTable(L, rows, new Set(v.coverage.leads.map((r) => r.id)), new Set(v.coverage.noSignals.map((r) => r.id)));
+
+  // Vibe-code review
+  const found = result.vibe_review.filter((x) => x.status === "found").length;
+  L.heading("Vibe-code review", `${found} of ${result.vibe_review.length} found`,
+    "Mistakes that AI-generated apps make most often. \"Not found\" means no lead matched; it is not a pass.");
+  const colW = (CW - 12) / 2;
+  for (let k = 0; k < result.vibe_review.length; k += 2) {
+    L.ensure(34);
+    [result.vibe_review[k], result.vibe_review[k + 1]].forEach((v, col) => {
+      if (!v) return;
+      const x = M + col * (colW + 12);
+      const hit = v.status === "found";
+      d.roundRect(x, L.y, colW, 28, 5, hit ? "#fff7ed" : C.panel, hit ? "#f5c48a" : C.line, 0.5);
+      d.text(x + 9, L.y + 12, hit ? "!" : "o", "F2", 8, hit ? SEV.High.color : C.faint);
+      d.text(x + 20, L.y + 12, wrap(v.title, "F2", 8.5, colW - 60, 1)[0], "F2", 8.5, C.ink);
+      d.text(x + 20, L.y + 22, v.rules.join(" · "), "F3", 6.5, C.faint);
+      d.textRight(x + colW - 9, L.y + 15, hit ? String(v.leads) : "–", "F2", 10, hit ? SEV.High.color : C.faint);
+    });
+    L.y += 34;
+  }
+
+  // Standards
+  const st = result.standards;
+  L.heading("Standards", "leads in source code", st.note);
+  const stdTable = (title: string, rows: typeof st.owasp_top10_2021) => {
+    L.ensure(40);
+    d.text(M, L.y + 10, title, "F2", 9.5, C.ink);
+    L.y += 16;
+    for (const r of rows) {
+      L.ensure(14);
+      d.text(M + 4, L.y + 9, r.id, "F3", 7.5, r.leads ? SEV.High.color : C.faint);
+      d.text(M + 48, L.y + 9, wrap(r.name, "F1", 8, 210, 1)[0], "F1", 8, C.ink);
+      d.text(M + 270, L.y + 9, r.checked ? (r.leads ? String(r.leads) : "–") : "—", r.leads ? "F2" : "F1", 8, r.leads ? SEV.High.color : C.faint);
+      d.text(M + 300, L.y + 9, wrap(r.checked ? r.rules.join(", ") : "not checked by this scanner", "F3", 6.5, CW - 300, 1)[0], "F3", 6.5, C.dim);
+      L.y += 13;
+      d.line(M, L.y, M + CW, L.y, C.line, 0.3);
+    }
+    L.y += 8;
+  };
+  stdTable("OWASP Top 10 (2021)", st.owasp_top10_2021);
+  stdTable("OWASP API Security Top 10 (2023)", st.owasp_api_2023);
+  stdTable("OWASP Top 10 for LLM Applications (2025)", st.owasp_llm_2025);
+  L.ensure(30);
+  d.text(M, L.y + 10, "CWE", "F2", 9.5, C.ink);
+  L.y += 16;
+  if (!st.cwe.length) { d.text(M + 4, L.y + 9, "No CWE-mapped leads in source code.", "F1", 8, C.dim); L.y += 14; }
+  for (const x of st.cwe) {
+    L.ensure(14);
+    d.text(M + 4, L.y + 9, x.id, "F3", 7.5, C.ink);
+    d.text(M + 70, L.y + 9, x.name, "F1", 8, C.ink);
+    d.text(M + 330, L.y + 9, String(x.leads), "F2", 8, C.ink);
+    if (x.top25) { d.roundRect(M + 360, L.y + 1, 44, 11, 5, C.warnBg, C.line, 0.3); d.text(M + 366, L.y + 9, "Top 25", "F1", 6.5, C.warnInk); }
+    L.y += 13;
+    d.line(M, L.y, M + CW, L.y, C.line, 0.3);
+  }
+  L.y += 8;
+  L.ensure(30);
+  d.text(M, L.y + 10, "Compliance frameworks (related requirements)", "F2", 9.5, C.ink);
+  L.y += 16;
+  for (const fw of st.frameworks) {
+    const text = fw.requirements.map((r) => `${r.ref}${r.name ? " " + r.name : ""} (${r.leads})`).join("  ·  ") || "no related leads in source code";
+    const lines = wrap(text, "F1", 8, CW - 150);
+    L.ensure(lines.length * 11 + 6);
+    d.text(M + 4, L.y + 9, fw.name, "F2", 8, C.ink);
+    lines.forEach((l, i) => d.text(M + 150, L.y + 9 + i * 11, l, "F1", 8, C.dim));
+    L.y += lines.length * 11 + 6;
+  }
 
   // Inventory & tools
   const inv = result.inventory;

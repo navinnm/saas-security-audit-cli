@@ -76,6 +76,17 @@ def export(m):
         "control_signals": {str(k): js_regex(v) for k, v in m.CONTROL_SIGNALS.items()},
         "security_packages": {k: {"control": c, "role": r} for k, (c, r) in m.SECURITY_PACKAGES.items()},
         "rule_titles": m.RULE_TITLES,
+        "standards": {rid: {"owasp": o, "api": api, "llm": llm, "cwe": cwe, "kind": kind}
+                      for rid, (o, api, llm, cwe, kind) in m.STANDARDS.items()},
+        "owasp_top10": m.OWASP_TOP10,
+        "owasp_api": m.OWASP_API,
+        "owasp_llm": m.OWASP_LLM,
+        "cwe_names": m.CWE_NAMES,
+        "cwe_top25_2024": sorted(m.CWE_TOP25_2024, key=lambda c: int(c.split("-")[1])),
+        "frameworks": [{"id": k, "name": n, "mapping": mp} for k, n, mp in m.FRAMEWORKS],
+        "framework_ref_names": m.FRAMEWORK_REF_NAMES,
+        "standards_note": m.STANDARDS_NOTE,
+        "vibe_checks": [{"id": i, "title": t, "rules": r} for i, t, r in m.VIBE_CHECKS],
         "secret_guidance": m.SECRET_GUIDANCE,
     }
 

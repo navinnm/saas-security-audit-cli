@@ -155,3 +155,25 @@ test("repository profile: languages, folder roles, skipped dirs", async () => {
     rmSync(root, { recursive: true, force: true });
   }
 });
+
+test("standards and vibe review in terminal, CI text, HTML and PDF", async () => {
+  const { renderHtml } = await import("../dist/html.js");
+  const { renderPdf } = await import("../dist/pdf.js");
+  await withResult({ ...FIXTURES.vulnerableSaas, ...FIXTURES.vibeCoded }, (result, root) => {
+    assert.equal(result.standards.owasp_top10_2021.length, 10);
+    assert.ok(result.findings.every((f) => f.standards && "cwe" in f.standards));
+    assert.equal(result.vibe_review.length, 12);
+    assert.equal(result.vibe_review.find((v) => v.id === "V3").status, "found", "client-side admin check found");
+    const ci = ciText(result, { version: "1", project: "p", elapsed: 0, filesWalked: 1, failOn: "none", gateTripped: false, report: null });
+    assert.match(ci, /^owasp {7}A01=\d+/m);
+    assert.match(ci, /^vibe {8}\d+\/12 found: V1/m);
+    const pretty = spawnSync("node", [CLI, root, "--format", "pretty", "--no-update-check"], { encoding: "utf8", env: { ...process.env, NO_COLOR: "1" } }).stdout;
+    for (const s of ["VIBE-CODE REVIEW", "STANDARDS", "API Top 10", "LLM Top 10", "Frameworks", "OWASP A03:2021 · CWE-89"]) assert.ok(pretty.includes(s), `missing ${s}`);
+    const html = renderHtml(result);
+    for (const s of ["Vibe-code review", "OWASP Top 10 (2021)", "OWASP API Security Top 10 (2023)", "Compliance frameworks", "does not demonstrate compliance"]) {
+      assert.ok(html.includes(s), `html missing ${s}`);
+    }
+    const pdf = renderPdf(result).toString("latin1");
+    assert.ok(pdf.startsWith("%PDF-") && pdf.trimEnd().endsWith("%%EOF"));
+  });
+});

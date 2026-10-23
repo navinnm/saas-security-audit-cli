@@ -72,6 +72,14 @@ export const FIXTURES = {
     "main.tf": 'resource "x" "y" {\n  member = "allUsers"\n  acl = "public-read"\n}\n',
     "package.json": JSON.stringify({ dependencies: { "drizzle-orm": "1", "@prisma/client": "5" } }),
   },
+  vibeCoded: {
+    "app/admin/page.tsx": "export default function Admin({ user }) {\n  if (user.role === 'admin') return <Panel />;\n}\n",
+    "lib/auth.js": "localStorage.setItem('access_token', token)\nconst admin = localStorage.getItem('isAdmin')\n",
+    "lib/ai.ts": "const openai = new OpenAI({ apiKey: key, dangerouslyAllowBrowser: true })\n",
+    "app/api/billing/route.ts": "// TODO: add auth check before launch\nexport async function POST(req) { return charge(req) }\n",
+    "server/legacy.py": "# skip auth for internal calls\n",
+    "lib/pay.js": "const stripe = new Stripe('sk_' + key)\n",
+  },
   edgeCases: {
     "crlf.js": "const a = 1;\r\nel.innerHTML = x;\r\nconst b = 2;\r\n",
     "unicode.py": "# café ☕ — 日本語\nname = \"𝓾𝓷𝓲𝓬𝓸𝓭𝓮\"\neval(x)  # ünïcödé\n",

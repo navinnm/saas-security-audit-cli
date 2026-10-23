@@ -5,6 +5,7 @@
 import { createHash } from "node:crypto";
 import { readdirSync, readFileSync, statSync, existsSync } from "node:fs";
 import { join } from "node:path";
+import { standardsFor, type FindingStandards } from "./standards.js";
 import {
   R, RULES, SECRET_FORMATS, RE, CONTROL_SIGNALS, SECRET_GUIDANCE, SKIP_DIRS, CODE_EXTS, CONFIG_EXTS,
   SQL_EXTS, DOC_EXTS, CONFIG_NAMES, LOCKFILES,
@@ -13,7 +14,7 @@ import {
 export interface Finding {
   id: string; title: string; severity: string; confidence: string; controls: number[];
   status: string; file: string; line: number; evidence: string; guidance: string; context: string;
-  fingerprint: string; suppressed?: string;
+  fingerprint: string; suppressed?: string; standards?: FindingStandards;
 }
 
 export interface Signal { source: string[]; source_count: number; test_count: number }
@@ -181,7 +182,8 @@ export function fingerprint(f: Pick<Finding, "id" | "file" | "evidence">): strin
 
 export function makeFinding(id: string, title: string, severity: string, confidence: string, controls: number[],
   file: string, line: number, evidence: string, guidance: string, context: string): Finding {
-  const f = { id, title, severity, confidence, controls: [...controls], status: "NEEDS_REVIEW", file, line, evidence, guidance, context } as Finding;
+  const f = { id, title, severity, confidence, controls: [...controls], status: "NEEDS_REVIEW", file, line, evidence, guidance, context,
+    standards: standardsFor(id) } as Finding;
   f.fingerprint = fingerprint(f);
   return f;
 }

@@ -391,6 +391,10 @@ export function summaryScreen(result: Result, i: SummaryInfo): { lines: string[]
   // By folder
   if (i.profile) out.push(...byFolder(v.shown, i.profile, w), "");
 
+  // Vibe-code review and standards
+  out.push(...vibeSection(result, w), "");
+  out.push(...standardsSection(result, w), "");
+
   // Control coverage grid
   out.push(...indent(heading("Control coverage", w, "22 controls", "a control passes only when enforcement is located and tested")));
   const leadIds = new Set(v.coverage.leads.map((r) => r.id));
@@ -420,6 +424,77 @@ export function summaryScreen(result: Result, i: SummaryInfo): { lines: string[]
   ], 14)));
   out.push(" " + padStart(poweredBy(), w), "");
   return { lines: out, view: v, verdict: verdictV };
+}
+
+const OWASP_SHORT: Record<string, string> = {
+  A01: "Access", A02: "Crypto", A03: "Injection", A04: "Design", A05: "Misconfig",
+  A06: "Components", A07: "Auth", A08: "Integrity", A09: "Logging", A10: "SSRF",
+};
+
+/** VIBE-CODE REVIEW: the 12 most common AI-generated-app mistakes, found or not, in two columns. */
+function vibeSection(result: Result, w: number): string[] {
+  const checks = result.vibe_review;
+  const found = checks.filter((v) => v.status === "found").length;
+  const out = indent(heading("Vibe-code review", w, `${found} of ${checks.length} common AI-codegen mistakes found`, "not found ≠ passed"));
+  const colW = Math.floor((w - 6) / 2);
+  const cell = (v: (typeof checks)[number]) => v.status === "found"
+    ? spread(`${c.high("▲")} ${fit(v.title, colW - 8)}`, bold(c.high(num(v.leads))), colW)
+    : `${c.dim("○")} ${c.muted(fit(v.title, colW - 4))}`;
+  const half = Math.ceil(checks.length / 2);
+  for (let k = 0; k < half; k++) {
+    out.push(" " + SUB + padEnd(cell(checks[k]), colW) + "    " + (checks[k + half] ? cell(checks[k + half]) : ""));
+  }
+  return out;
+}
+
+/** STANDARDS: OWASP Top 10 grid, then one line each for API Top 10, LLM Top 10, CWE, and frameworks. */
+function standardsSection(result: Result, w: number): string[] {
+  const s = result.standards;
+  const out = indent(heading("Standards", w, "OWASP · CWE · compliance mapping", "leads in source code"));
+  const cellW = Math.floor((w - 2 - 4 * 2) / 5);
+  for (let row = 0; row < 2; row++) {
+    const cells = s.owasp_top10_2021.slice(row * 5, row * 5 + 5).map((r) => {
+      const txt = ` ${r.id} ${OWASP_SHORT[r.id]}`;
+      const n = r.checked ? (r.leads ? String(r.leads) : "–") : "n/c";
+      const body = padEnd(fit(txt, cellW - n.length - 2), cellW - n.length - 1) + n + " ";
+      return r.leads ? bg("#2B2210", P.med, body) : bg("#161B22", P.muted, body);
+    });
+    out.push(" " + SUB + cells.join("  "));
+  }
+  const line = (label: string, text: string) => " " + SUB + padEnd(c.muted(label), 14) + text;
+  const listed = (rows: typeof s.owasp_api_2023) => {
+    const hits = rows.filter((r) => r.leads).map((r) => `${bold(r.id)} ${c.high(num(r.leads))}`);
+    const notChecked = rows.filter((r) => !r.checked).length;
+    return (hits.join(c.dim("  ·  ")) || c.muted("no leads")) + (notChecked ? c.dim(`   (${notChecked} not checked)`) : "");
+  };
+  out.push("");
+  out.push(line("API Top 10", fitAnsi(listed(s.owasp_api_2023), w - 18)));
+  out.push(line("LLM Top 10", fitAnsi(listed(s.owasp_llm_2025), w - 18)));
+  const top25 = s.cwe.filter((x) => x.top25).length;
+  out.push(line("CWE", fitAnsi(s.cwe.length
+    ? `${bold(num(s.cwe.length))} ${c.muted(`weakness${s.cwe.length === 1 ? "" : "es"} ·`)} ${bold(num(top25))} ${c.muted("in CWE Top 25 · top:")} ` +
+      s.cwe.slice(0, 2).map((x) => `${x.id} ${c.muted(fit(x.name, 22))} ${c.high("×" + num(x.leads))}`).join(c.dim("  ·  "))
+    : c.muted("no CWE-mapped leads"), w - 18)));
+  const FW_SHORT: Record<string, string> = { asvs: "ASVS", pci_dss: "PCI DSS", soc2: "SOC 2", iso27001: "ISO 27001", nist_ssdf: "NIST SSDF" };
+  out.push(line("Frameworks", fitAnsi(s.frameworks.map((f) => `${FW_SHORT[f.id] ?? f.name} ${c.muted(f.requirements.slice(0, 1).map((r) => r.ref.split(" ")[0]).join(", ") || "–")}`).join(c.dim("  ·  ")), w - 18)));
+  out.push(...wrap(s.note, w - 4).map((l) => " " + SUB + c.dim(l)));
+  return out;
+}
+
+/** Truncate a string that contains colour codes to `max` visible cells. */
+function fitAnsi(text: string, max: number): string {
+  if (vlen(text) <= max) return text;
+  let visible = 0;
+  let out = "";
+  for (const part of text.split(/(\x1b\[[0-9;]*m)/)) {
+    if (part.startsWith("\x1b[")) { out += part; continue; }
+    for (const ch of part) {
+      if (visible >= max - 1) return out + "…" + (text.includes("\x1b[") ? "\x1b[0m" : "");
+      out += ch;
+      visible++;
+    }
+  }
+  return out;
 }
 
 /** BY FOLDER: which top-level folders hold the leads, with their size and role. */
@@ -516,7 +591,10 @@ function ruleGroup(id: string, list: Finding[], width: number, maxRows: number):
   const head = ` ${badge(worst)}  ${c.muted(id.padEnd(7))} ${padEnd(bold(fit(groupTitle(list), titleW)), titleW)}  ${c.muted(`C${ctl} ${CONTROL_TINY[ctl - 1]}`.padEnd(14))} ${bold(padStart(`×${num(list.length)}`, 6))}`;
   const fixW = width - 16 - 3;
   const fix = wrap(list[0].guidance, fixW).map((l, i) => " ".repeat(16) + (i ? "  " : c.ok("→ ")) + l);
-  return [head, ...locationTree(id, list, width, maxRows), ...fix];
+  const st = list[0].standards;
+  const tags = st ? [st.owasp ? `OWASP ${st.owasp}` : "", ...st.owasp_api.map((a) => `OWASP ${a}`), ...st.owasp_llm.map((l) => `OWASP ${l}`), ...st.cwe].filter(Boolean) : [];
+  const stdLine = tags.length ? [" ".repeat(18) + c.dim(tags.join(" · "))] : [];
+  return [head, ...locationTree(id, list, width, maxRows), ...fix, ...stdLine];
 }
 
 export function findingsScreen(i: FindingsInfo): string[] {
@@ -657,10 +735,14 @@ export function ciText(result: Result, o: { version: string; project: string; el
     ["result", `${o.failOn === "none" ? "DONE" : o.gateTripped ? "FAIL" : "PASS"}  gate=${o.failOn}`],
     ["counts", `crit=${sc.Critical ?? 0} high=${sc.High ?? 0} med=${sc.Medium ?? 0} low=${sc.Low ?? 0} info=${sc.Informational ?? 0}`],
     ["controls", `leads=${v.coverage.leads.length} no_signal=${v.coverage.noSignals.length} not_verified=${v.coverage.notVerified.length} passed=0`],
+    ["owasp", result.standards.owasp_top10_2021.filter((r) => r.leads).map((r) => `${r.id}=${r.leads}`).join(" ") || "none"],
+    ["cwe", result.standards.cwe.map((x) => `${x.id}=${x.leads}`).join(" ") || "none"],
+    ["vibe", `${result.vibe_review.filter((x) => x.status === "found").length}/${result.vibe_review.length} found` +
+      (result.vibe_review.some((x) => x.status === "found") ? `: ${result.vibe_review.filter((x) => x.status === "found").map((x) => x.id).join(",")}` : "")],
   ];
   if (o.profile) {
     lines.splice(2, 0,
-      ["languages", o.profile.languages.slice(0, 5).map((l) => `${l.name} ${l.files} (${Math.round(l.share * 100)}%)`).join(" · ") || "none recognised"],
+      ["languages", o.profile.languages.slice(0, 5).map((l) => `${l.name} ${l.files} (${l.share > 0 && l.share < 0.005 ? "<1" : Math.round(l.share * 100)}%)`).join(" · ") || "none recognised"],
       ["folders", o.profile.folders.slice(0, 5).map((f) => `${f.name}/ ${f.files}`).join(" · ") + (o.profile.skippedDirs.length ? ` · skipped ${o.profile.skippedDirs.join(",")}` : "")]);
   }
   const out = lines.map(([k, val]) => k.padEnd(12) + val);
