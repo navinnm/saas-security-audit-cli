@@ -11,10 +11,13 @@ import { SEVERITY_RANK } from "./rules.js";
 import { LiveScan } from "./ui/LiveScan.js";
 import { createInterface } from "node:readline/promises";
 import { renderHidden, renderSummary } from "./ui/summary.js";
+import { renderHtml } from "./html.js";
+import { renderPdf } from "./pdf.js";
 import { c, gradient } from "./ui/theme.js";
+import { CLI_VERSION } from "./version.js";
 import { latestVersion, runUpdate, updateCheckEnabled, updateNotice, withDeadline } from "./update.js";
 
-const pkg = JSON.parse(readFileSync(new URL("../package.json", import.meta.url), "utf8")) as { version: string };
+const pkg = { version: CLI_VERSION };
 const SEVERITIES = Object.keys(SEVERITY_RANK).map((s) => s.toLowerCase());
 const FAIL_ON = ["none", ...SEVERITIES.filter((s) => s !== "informational")];
 
@@ -28,9 +31,10 @@ ${c.bold("Usage")}
   saas-audit update                Update to the latest version
 
 ${c.bold("Options")}
-  --format <pretty|markdown|json>  Output format (default: pretty in a terminal, markdown otherwise)
+  --format <pretty|markdown|json|html>  Output format (default: pretty in a terminal, markdown otherwise)
   --json                           Shorthand for --format json
-  --output <file>                  Also write the report to a file (.json → JSON, otherwise Markdown)
+  --output <file>                  Write a report file; repeatable. Format from extension:
+                                   .pdf · .html · .json · .md
   --min-severity <level>           Hide leads below: ${SEVERITIES.join(", ")}
   --fail-on <level>                Exit 1 on an unsuppressed lead at/above: ${FAIL_ON.join(", ")}
   --baseline <file>                Previous JSON output; adds new/resolved/persisting comparison
@@ -44,7 +48,7 @@ ${c.bold("Examples")}
   npx saas-security-audit                         Scan the current directory
   saas-audit ./apps/web --min-severity medium     Focus on medium and above
   saas-audit --fail-on high --format json         CI gate
-  saas-audit --output security-report.md          Keep a Markdown report
+  saas-audit --output report.pdf --output report.html   Shareable PDF and HTML reports
 
 The scanner never executes your code and makes no network requests.
 For full verification and fixes, use the Claude Code plugin: /saas-security-audit:audit
@@ -67,7 +71,7 @@ async function main(): Promise<number> {
     parsed = parseArgs({
       allowPositionals: true,
       options: {
-        root: { type: "string" }, format: { type: "string" }, json: { type: "boolean" }, output: { type: "string" },
+        root: { type: "string" }, format: { type: "string" }, json: { type: "boolean" }, output: { type: "string", multiple: true },
         "min-severity": { type: "string" }, "fail-on": { type: "string" }, baseline: { type: "string" },
         "no-animation": { type: "boolean" }, "no-update-check": { type: "boolean" }, "include-tests": { type: "boolean" }, "dry-run": { type: "boolean" }, help: { type: "boolean", short: "h" }, version: { type: "boolean", short: "v" },
       },
@@ -82,7 +86,10 @@ async function main(): Promise<number> {
 
   const interactive = Boolean(process.stdout.isTTY) && !process.env.CI && !a["no-animation"] && process.env.TERM !== "dumb";
   const format = a.format ?? (a.json ? "json" : interactive ? "pretty" : "markdown");
-  if (!["pretty", "markdown", "json"].includes(format)) fail(`--format must be one of pretty, markdown, json`);
+  if (!["pretty", "markdown", "json", "html"].includes(format)) {
+    fail(format === "pdf" ? "PDF is binary; write it to a file with --output report.pdf" : "--format must be one of pretty, markdown, json, html");
+  }
+  const outputs = (a.output ?? []).map((o) => resolve(o.replace(/^~(?=$|\/)/, homedir())));
   const minSeverity = (a["min-severity"] ?? "informational").toLowerCase();
   if (!SEVERITIES.includes(minSeverity)) fail(`--min-severity must be one of ${SEVERITIES.join(", ")}`);
   const failOn = (a["fail-on"] ?? "none").toLowerCase();
@@ -124,19 +131,22 @@ async function main(): Promise<number> {
   const shown = sortFindings(findings.filter((f) => SEVERITY_RANK[f.severity] >= floor));
   const result: Result = buildResult(root, shown, state, baseline);
 
-  if (a.output) {
-    const target = resolve(a.output.replace(/^~(?=$|\/)/, homedir()));
+  const includeTests = Boolean(a["include-tests"]);
+  for (const target of outputs) {
     mkdirSync(dirname(target), { recursive: true });
-    writeFileSync(target, target.endsWith(".json") ? JSON.stringify(result, null, 2) : markdown(result), "utf8");
+    const ext = target.toLowerCase().split(".").pop();
+    if (ext === "pdf") writeFileSync(target, renderPdf(result, { includeTests }));
+    else writeFileSync(target, ext === "json" ? JSON.stringify(result, null, 2)
+      : ext === "html" || ext === "htm" ? renderHtml(result, { includeTests }) : markdown(result), "utf8");
   }
   if (format === "json") process.stdout.write(JSON.stringify(result, null, 2) + "\n");
-  else if (format === "markdown") { if (!a.output) process.stdout.write(markdown(result) + "\n"); }
+  else if (format === "html") process.stdout.write(renderHtml(result, { includeTests }));
+  else if (format === "markdown") { if (!outputs.length) process.stdout.write(markdown(result) + "\n"); }
   else {
     // Test-file findings are collapsed by default; in an interactive terminal the user is asked whether to see them.
     const canPrompt = interactive && Boolean(process.stdin.isTTY) && !a["include-tests"];
     const { text, hidden } = renderSummary(result, { elapsedMs: Date.now() - started, columns: process.stdout.columns,
-      outputPath: a.output ? tildify(resolve(a.output)) : undefined, filesWalked,
-      includeTests: Boolean(a["include-tests"]), willPrompt: canPrompt });
+      reports: outputs.map(tildify), filesWalked, includeTests, willPrompt: canPrompt });
     process.stdout.write(text + "\n");
     if (hidden.length && canPrompt && await confirm(`  Show ${hidden.length} findings from test files and local env files? ${c.gray("(y/N)")} `)) {
       process.stdout.write(renderHidden(hidden, process.stdout.columns) + "\n");

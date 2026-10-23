@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState } from "react";
 import { Box, Text, useApp, useStdout } from "ink";
 import type { Finding, ScanEvents } from "../engine.js";
 import { AMBER, BEAM, GROUPS, SEV_INK, SEV_SHORT, groupOf, hex, lerpRgb } from "./theme.js";
-import { shownByDefault } from "./summary.js";
+import { shownByDefault } from "../view.js";
 
 type Phase = "discover" | "scan" | "analyze" | "done";
 

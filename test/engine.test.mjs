@@ -179,3 +179,45 @@ test("update check never runs outside an interactive terminal", async () => {
     assert.equal(existsSync(join(config, "saas-security-audit", "update-check.json")), false);
   });
 });
+
+test("PDF and HTML reports", async () => {
+  const { renderPdf } = await import("../dist/pdf.js");
+  const { renderHtml } = await import("../dist/html.js");
+  await withRepo({ ...FIXTURES.vulnerableSaas, "x.js": "el.innerHTML = '<script>alert(1)</script>' + q\n", "tests/t.py": "eval(x)\n" }, async (root) => {
+    const state = newState();
+    const result = buildResult(root, await scan(root, state), state);
+
+    const pdf = renderPdf(result);
+    const text = pdf.toString("latin1");
+    assert.ok(text.startsWith("%PDF-1.4") && text.trimEnd().endsWith("%%EOF"));
+    const xref = Number(/startxref\n(\d+)/.exec(text)[1]);
+    assert.equal(text.slice(xref, xref + 4), "xref", "xref offset must point at the xref table");
+    assert.ok((text.match(/\/Type \/Page \/Parent/g) ?? []).length >= 2);
+    for (const m of text.matchAll(/(\d+) 0 obj/g)) {
+      const offsets = text.slice(xref).split("\n").slice(3).map((l) => Number(l.slice(0, 10)));
+      assert.equal(offsets[Number(m[1]) - 1], m.index, `object ${m[1]} offset`);
+    }
+
+    const html = renderHtml(result);
+    assert.ok(html.startsWith("<!doctype html>"));
+    assert.ok(!/(?:src|href)=["']?https?:/i.test(html), "report must not load anything from the network");
+    assert.ok(!html.includes("<script>alert(1)</script>"), "evidence must be HTML-escaped");
+    assert.ok(html.includes("&lt;script&gt;alert(1)&lt;/script&gt;"));
+    assert.ok(html.includes("Test files &amp; local env files"));
+  });
+});
+
+test("CLI writes multiple report formats from --output extensions", async () => {
+  await withRepo({ "a.py": "eval(x)\n" }, async (root) => {
+    const out = join(root, "reports");
+    const r = spawnSync("node", [CLI, root, "--no-animation", "--output", join(out, "r.pdf"), "--output", join(out, "r.html"),
+      "--output", join(out, "r.json"), "--output", join(out, "r.md")], { encoding: "utf8" });
+    assert.equal(r.status, 0, r.stderr);
+    const { readFileSync } = await import("node:fs");
+    assert.ok(readFileSync(join(out, "r.pdf")).subarray(0, 5).toString() === "%PDF-");
+    assert.ok(readFileSync(join(out, "r.html"), "utf8").startsWith("<!doctype html>"));
+    assert.equal(JSON.parse(readFileSync(join(out, "r.json"), "utf8")).findings[0].id, "SEC002");
+    assert.ok(readFileSync(join(out, "r.md"), "utf8").startsWith("# Local SaaS Security Heuristic Scan"));
+    assert.equal(spawnSync("node", [CLI, root, "--format", "pdf"]).status, 2, "PDF to stdout is refused");
+  });
+});
