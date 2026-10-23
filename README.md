@@ -50,7 +50,7 @@ In an interactive terminal you get the live scanner: a sweeping scan beam, a pro
 
 ```yaml
 - name: SaaS security scan
-  run: npx saas-security-audit@0.3.0 --fail-on high --output security-report.md
+  run: npx saas-security-audit@0.3.1 --fail-on high --output security-report.md
 ```
 
 Track progress between runs:

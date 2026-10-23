@@ -58,6 +58,8 @@ def export(m):
         "max_line": m.MAX_LINE,
         "max_signal_locations": m.MAX_SIGNAL_LOCATIONS,
         "comment_prefixes": list(m.COMMENT_PREFIXES),
+        "report_markdown_header": m.REPORT_MARKDOWN_HEADER,
+        "report_json_marker": m.REPORT_JSON_MARKER,
         "rules": [{
             "id": r.rid, "title": r.title, "severity": r.severity, "confidence": r.confidence,
             "controls": list(r.controls), "scope": sorted(r.scope), "skip_comments": r.skip_comments,

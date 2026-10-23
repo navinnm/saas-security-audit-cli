@@ -22,6 +22,8 @@ interface RawRules {
   max_line: number;
   max_signal_locations: number;
   comment_prefixes: string[];
+  report_markdown_header: string;
+  report_json_marker: string;
   rules: {
     id: string; title: string; severity: string; confidence: string; controls: number[];
     scope: string[]; skip_comments: boolean; guidance: string;

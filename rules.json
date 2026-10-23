@@ -1,6 +1,6 @@
 {
  "generated_from": "saas-security-audit plugin scripts/scan.py",
- "version": "0.3.0",
+ "version": "0.3.1",
  "schema_version": 3,
  "controls": [
   "Row-level security and tenant isolation",
@@ -275,6 +275,8 @@
   "<!--",
   ";"
  ],
+ "report_markdown_header": "# Local SaaS Security Heuristic Scan",
+ "report_json_marker": "\"scanner\": \"saas-security-audit-heuristics\"",
  "rules": [
   {
    "id": "SEC002",

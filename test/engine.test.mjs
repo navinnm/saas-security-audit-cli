@@ -131,3 +131,27 @@ test("CLI: json output, fail-on exit codes, bad args", async () => {
     assert.ok(md.stdout.startsWith("# Local SaaS Security Heuristic Scan"), "non-TTY defaults to Markdown");
   });
 });
+
+test("own reports are not re-scanned", async () => {
+  await withRepo({ "a.py": "eval(x)\n" }, async (root) => {
+    const run = (...args) => spawnSync("node", [CLI, root, "--no-animation", ...args], { encoding: "utf8" });
+    run("--json", "--output", join(root, "baseline.json"));
+    run("--output", join(root, "security-report.md"));
+    const state = newState();
+    const found = await scan(root, state);
+    assert.deepEqual([...new Set(found.map((f) => f.file))], ["a.py"]);
+    assert.equal(state.files_scanned, 1);
+  });
+});
+
+test("summary separates source from tests", async () => {
+  await withRepo({ "app.py": "eval(x)\n", "tests/test_app.py": "eval(y)\nexec(z)\n" }, async (root) => {
+    const state = newState();
+    const result = buildResult(root, await scan(root, state), state);
+    assert.equal(result.stats.by_severity.High, 3);
+    assert.equal(result.stats.by_severity_source.High, 1);
+    const md = markdown(result);
+    assert.ok(md.includes("| High | 1 | 3 |"));
+    assert.ok(md.includes("excludes 2 lead(s) in test paths"));
+  });
+});

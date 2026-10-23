@@ -65,12 +65,17 @@ export function compare(findings: Finding[], baseline: { findings?: Finding[] })
 export function buildResult(root: string, findings: Finding[], state: ScanState, baseline?: { findings?: Finding[] }): Result {
   const { ecosystems, tools } = toolInventory(state);
   const bySeverity: Record<string, number> = {};
-  for (const s of Object.keys(SEVERITY_RANK)) bySeverity[s] = findings.filter((f) => f.severity === s).length;
+  const bySeveritySource: Record<string, number> = {};
+  for (const s of Object.keys(SEVERITY_RANK)) {
+    bySeverity[s] = findings.filter((f) => f.severity === s).length;
+    bySeveritySource[s] = findings.filter((f) => f.severity === s && f.context === "source").length;
+  }
   const result: Record<string, unknown> = {
     scanner: "saas-security-audit-heuristics", version: VERSION, schema_version: SCHEMA_VERSION,
     root, mode: "read-only-local-heuristics",
     stats: { files_scanned: state.files_scanned, skipped_large_lines: state.skipped_large_lines,
-      findings: findings.length, suppressed: state.suppressed.length, by_severity: bySeverity },
+      findings: findings.length, suppressed: state.suppressed.length, by_severity: bySeverity,
+      by_severity_source: bySeveritySource },
     findings, suppressed: state.suppressed,
     controls: CONTROLS.map((name, i) => {
       const id = i + 1;
@@ -95,7 +100,8 @@ export function buildResult(root: string, findings: Finding[], state: ScanState,
 
 export interface Result {
   scanner: string; version: string; schema_version: number; root: string; mode: string;
-  stats: { files_scanned: number; skipped_large_lines: number; findings: number; suppressed: number; by_severity: Record<string, number> };
+  stats: { files_scanned: number; skipped_large_lines: number; findings: number; suppressed: number;
+    by_severity: Record<string, number>; by_severity_source: Record<string, number> };
   findings: Finding[]; suppressed: Finding[];
   controls: { id: number; name: string; status: string; lead_count: number;
     signals: { source_count: number; test_count: number; locations: string[] } | null }[];
@@ -116,9 +122,12 @@ export function markdown(result: Result): string {
     `- **Files scanned:** ${stats.files_scanned}`,
     "- **Interpretation:** Every finding is a lead to validate in code, not a confirmed vulnerability.",
     "- **Coverage:** No control is automatically marked PASS.", "",
-    "## Summary", "", "| Severity | Leads |", "|---|---|"];
-  for (const [s, n] of Object.entries(stats.by_severity)) out.push(`| ${s} | ${n} |`);
-  out.push("", `Suppressed inline: ${stats.suppressed}. Findings in test paths or gitignored local env files are marked by context.`, "");
+    "## Summary", "", "| Severity | In source code | All leads |", "|---|---|---|"];
+  for (const [s, n] of Object.entries(stats.by_severity)) out.push(`| ${s} | ${stats.by_severity_source[s]} | ${n} |`);
+  const other = stats.findings - Object.values(stats.by_severity_source).reduce((a, b) => a + b, 0);
+  out.push("", `**In source code** excludes ${other} lead(s) in test paths or gitignored local env files; ` +
+    "those stay listed below, marked by context. " +
+    `Suppressed inline: ${stats.suppressed}.`, "");
   if (!findings.length) out.push("No heuristic matches detected. This does **not** mean the project is secure.", "");
   else {
     out.push("## Leads by control", "");

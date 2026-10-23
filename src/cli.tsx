@@ -99,11 +99,12 @@ async function main(): Promise<number> {
 
   const state = newState();
   let findings: Finding[] = [];
+  let filesWalked: number | undefined;
   const started = Date.now();
 
   if (format === "pretty" && interactive) {
     const app = render(
-      <LiveScan version={pkg.version} target={displayTarget(root)} run={async (ev) => { findings = await scan(root, state, ev); }} />,
+      <LiveScan version={pkg.version} target={displayTarget(root)} run={async (ev) => { findings = await scan(root, state, { ...ev, onDiscover: (n) => { filesWalked = n; ev.onDiscover?.(n); } }); }} />,
       { patchConsole: false },
     );
     await app.waitUntilExit();
@@ -123,7 +124,7 @@ async function main(): Promise<number> {
   if (format === "json") process.stdout.write(JSON.stringify(result, null, 2) + "\n");
   else if (format === "markdown") { if (!a.output) process.stdout.write(markdown(result) + "\n"); }
   else process.stdout.write(renderSummary(result, { elapsedMs: Date.now() - started, columns: process.stdout.columns,
-    outputPath: a.output ? tildify(resolve(a.output)) : undefined }) + "\n");
+    outputPath: a.output ? tildify(resolve(a.output)) : undefined, filesWalked }) + "\n");
 
   if (failOn !== "none") {
     const threshold = SEVERITY_RANK[capitalize(failOn)];

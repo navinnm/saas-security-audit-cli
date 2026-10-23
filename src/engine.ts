@@ -259,6 +259,12 @@ function walk(root: string): { abs: string; rel: string; name: string }[] {
   return out;
 }
 
+/** A report this scanner wrote (Markdown or JSON); re-scanning it would flag quoted evidence. */
+export function isOwnReport(lines: string[]): boolean {
+  const head = lines.slice(0, 4).join("\n");
+  return head.startsWith(R.report_markdown_header) || head.includes(R.report_json_marker);
+}
+
 export function newState(): ScanState {
   const signals: Record<number, Signal> = {};
   for (const [cid] of CONTROL_SIGNALS) signals[cid] = { source: [], source_count: 0, test_count: 0 };
@@ -296,7 +302,7 @@ export async function scan(root: string, state: ScanState = newState(), ev: Scan
     const category = classify(name, ext);
     if (category === null) continue;
     const lines = readLines(abs);
-    if (lines === null) continue;
+    if (lines === null || isOwnReport(lines)) continue;
     state.files_scanned++;
     const inTest = RE.testPath.test(rel);
     if (inTest && category === "code") state.test_files++;

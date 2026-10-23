@@ -9,20 +9,24 @@ function fit(plain: string, max: number): string {
   return [...plain].length <= max ? plain : [...plain].slice(0, Math.max(1, max - 1)).join("") + "…";
 }
 
-export function renderSummary(result: Result, opts: { elapsedMs: number; columns?: number; outputPath?: string }): string {
+export function renderSummary(result: Result, opts: { elapsedMs: number; columns?: number; outputPath?: string; filesWalked?: number }): string {
   const cols = Math.max(60, Math.min(opts.columns ?? 100, 120));
   const out: string[] = [];
   const s = result.stats;
   const secs = (opts.elapsedMs / 1000).toFixed(1);
 
   out.push("", "");
-  out.push(` ${c.green("✔")} ${c.bold("Scan complete")} ${c.gray(`— ${s.files_scanned} files · ${secs}s · offline · nothing left your machine`)}`);
+  out.push(` ${c.green("✔")} ${c.bold("Scan complete")} ${c.gray(`— ${opts.filesWalked !== undefined ? `${opts.filesWalked} files checked, ${s.files_scanned} analysed` : `${s.files_scanned} files analysed`} · ${secs}s · offline · nothing left your machine`)}`);
   out.push("");
   const counts = SEVERITY_ORDER.map((sev) => {
-    const n = s.by_severity[sev] ?? 0;
+    const n = s.by_severity_source[sev] ?? 0;
     return n ? `${sevBadge(sev)}${c.bold(String(n))}` : c.gray(` ${SEV_SHORT[sev]} 0`.padEnd(8));
   });
-  out.push("  " + counts.join("   "));
+  out.push("  " + counts.join("   ") + c.gray("   in source code"));
+  const sourceTotal = Object.values(s.by_severity_source).reduce((a, b) => a + b, 0);
+  if (s.findings > sourceTotal) {
+    out.push(c.gray(`  +${s.findings - sourceTotal} more in test files or gitignored local env files (listed below, marked by context)`));
+  }
   if (s.suppressed) out.push(c.gray(`  ${s.suppressed} suppressed inline (listed in the Markdown/JSON report)`));
   out.push("");
 
@@ -54,7 +58,8 @@ export function renderSummary(result: Result, opts: { elapsedMs: number; columns
       out.push("");
     }
     if (findings.length > listed) {
-      out.push(c.gray(`  +${findings.length - listed} more leads — write the full report with --format markdown --output security-report.md`));
+      out.push(c.gray(`  +${findings.length - listed} more leads — ` +
+        (opts.outputPath ? `all ${findings.length} are in ${opts.outputPath}` : "write the full report with --output security-report.md")));
       out.push("");
     }
   }
