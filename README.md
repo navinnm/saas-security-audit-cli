@@ -41,11 +41,14 @@ saas-audit [path] [options]
   --min-severity <level>           informational | low | medium | high | critical
   --fail-on <level>                Exit 1 on a lead at/above this severity (CI gate)
   --baseline <file>                Diff against a previous JSON run: new / resolved / persisting
+  --include-tests                  List findings in test files and gitignored env files without asking
   --no-animation                   Skip the live scanner panel
   --no-update-check                Don't check npm for a newer version
 
 saas-audit update                  Update to the latest version
 ```
+
+Findings in your source code come first. Findings in test files and gitignored local env files are collapsed into one line, and in an interactive terminal the CLI asks whether to show them; `--include-tests` lists them straight away. Real-format secrets are always shown, even in tests. Report files (`--output`) always contain everything.
 
 In an interactive terminal you get the live scanner: a sweeping scan beam, a progress bar, per-category counters, and a feed of findings as they're discovered. With `CI` set, `NO_COLOR` set, or output piped, it switches automatically to plain Markdown.
 
@@ -53,7 +56,7 @@ In an interactive terminal you get the live scanner: a sweeping scan beam, a pro
 
 ```yaml
 - name: SaaS security scan
-  run: npx saas-security-audit@0.3.3 --fail-on high --output security-report.md
+  run: npx saas-security-audit@0.3.4 --fail-on high --output security-report.md
 ```
 
 Track progress between runs:
