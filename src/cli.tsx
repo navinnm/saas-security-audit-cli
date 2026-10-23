@@ -89,7 +89,7 @@ async function main(): Promise<number> {
   let root = resolve((a.root ?? parsed.positionals[0] ?? ".").replace(/^~(?=$|\/)/, homedir()));
   let isDir = false;
   try { isDir = statSync(root).isDirectory(); } catch { /* missing */ }
-  if (!isDir) fail("--root must be an existing directory");
+  if (!isDir) fail(`not a directory: ${a.root ?? parsed.positionals[0] ?? "."}  (usage: saas-audit [path] [options] · saas-audit update · saas-audit --help)`);
   root = realpathSync(root); // like Path.resolve(): follow symlinks so reports match the plugin scanner
 
   let baseline: { findings?: Finding[] } | undefined;
