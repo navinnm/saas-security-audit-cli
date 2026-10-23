@@ -22,7 +22,7 @@ function py(root, ...args) {
   return { out: r.stdout, code: r.status };
 }
 function js(root, ...args) {
-  const r = spawnSync("node", [CLI, root, "--no-animation", ...args], { encoding: "utf8", env: { ...process.env, NO_COLOR: "1" } });
+  const r = spawnSync("node", [CLI, root, "--no-animation", ...args], { encoding: "utf8", env: { ...process.env, NO_COLOR: "1", SAAS_AUDIT_ENGINE: "regex" } });
   return { out: r.stdout, code: r.status };
 }
 

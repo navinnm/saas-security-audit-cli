@@ -29,10 +29,17 @@ The report format comes from the file extension: `.pdf`, `.html`, `.json` or `.m
 
 Generic linters miss the bugs that hurt SaaS companies most: **authorization bugs at trust boundaries**, such as one tenant reading another's invoices, a table shipped without RLS, or a Stripe webhook accepted without a signature check. `saas-security-audit` is tuned for exactly these, and it tells you *where* each control's enforcement should live, not just what it matched.
 
+For JavaScript and TypeScript it also **reads the code as code**, not line by line: it finds every Next.js route handler, server action and Express/Hono route, follows request data through variables into database calls, and follows sign-in checks into the helpers a handler calls (in the same file or imported). That is how it catches the bugs AI-written apps ship most, which pattern scanners can't see: a route nobody has to log in for, a record loaded by an id from the URL with no owner check, a request body saved as a whole.
+
 ## What it finds
 
 | Example | Control |
 |---|---|
+| `export async function GET() { return Response.json(await prisma.invoice.findMany()) }` with no session check; a `"use server"` action that deletes without one | Login on every route (traced) |
+| `prisma.post.findUnique({ where: { id: params.id } })` with no owner in the query and no check after it | IDOR / object-level access (traced) |
+| `prisma.user.update({ data: await req.json() })`, `{ ...body, }` into a write | Mass assignment (traced) |
+| `data: { userId: formData.get("userId"), price: body.price }` | Owner or price from the browser (traced) |
+| `$queryRawUnsafe` / `exec` / `eval` / `fetch` / `redirect` fed by `req.json()`, `searchParams`, route params | Injection, SSRF, open redirect (traced) |
 | Supabase `service_role` key in a `NEXT_PUBLIC_` env variable | Secrets |
 | `create table public.invoices` with no `ENABLE ROW LEVEL SECURITY` | Tenant isolation / RLS |
 | RLS policy `USING (true)`, Drizzle tables without RLS, Prisma models with no tenant key | Tenant isolation |
@@ -140,24 +147,24 @@ This is a fast heuristic scanner. **It finds leads, not proof.** It reports fals
 /saas-security-audit:audit
 ```
 
-The CLI and the plugin share one rule set and produce identical results.
+The plugin's scanner gives Claude its starting leads; the CLI started from the same rules and now goes further (code-flow analysis for JavaScript/TypeScript, fewer false positives). `SAAS_AUDIT_ENGINE=regex` runs only the line rules.
 
 ## Privacy
 
 - The scan runs entirely on your machine. It makes no network requests, never executes your code, and has no telemetry.
 - **Update check:** in an interactive terminal, the CLI asks the public npm registry (`registry.npmjs.org`) at most once a day whether a newer version exists. That request contains only the package name; nothing about your code or findings. It never runs in CI, when output is piped, or with `--json`/`--format markdown`. Turn it off with `--no-update-check`, `SAAS_AUDIT_NO_UPDATE_CHECK=1`, or `NO_UPDATE_NOTIFIER=1`. `saas-audit update` contacts the registry only when you run it.
 - Secret values are redacted in every output.
-- It doesn't read credentials. The only environment variables it reads are `PATH` (to report which optional audit tools are installed) and the colour and update-check switches above.
+- It doesn't read credentials. The only environment variables it reads are `PATH` (to report which optional audit tools are installed), the colour and update-check switches above, and `SAAS_AUDIT_ENGINE`.
 
 ## Development
 
 ```bash
 npm install
-npm test             # builds, runs engine tests, and parity tests against the Python plugin scanner
-npm run sync-rules   # regenerate rules.json from the plugin's scripts/scan.py
+npm test                       # builds, runs engine, code-flow and UI tests
+SAAS_AUDIT_PARITY=1 npm test   # also compare the line rules with the plugin's scripts/scan.py
 ```
 
-`rules.json` is generated from the plugin's scanner, which is the single source of truth. The parity tests run both scanners on the same repos and require identical JSON and Markdown output.
+`rules.json` holds the line rules and the rule metadata (titles, OWASP/CWE mapping, vibe-code groups) and is edited here; it started as an export of the plugin's scanner (`npm run sync-rules` would overwrite it). The code-flow analysis lives in `src/flow.ts` (rules SEC044–SEC049), with planted-bug tests in `test/flow.test.mjs`.
 
 ## License
 

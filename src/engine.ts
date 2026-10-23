@@ -6,6 +6,7 @@ import { createHash } from "node:crypto";
 import { readdirSync, readFileSync, statSync, existsSync } from "node:fs";
 import { join } from "node:path";
 import { standardsFor, type FindingStandards } from "./standards.js";
+import { analyzeFlows, FLOW_EXTS, type FlowFile } from "./flow.js";
 import {
   R, RULES, SECRET_FORMATS, RE, CONTROL_SIGNALS, SECRET_GUIDANCE, SKIP_DIRS, CODE_EXTS, CONFIG_EXTS,
   SQL_EXTS, DOC_EXTS, CONFIG_NAMES, LOCKFILES,
@@ -334,6 +335,8 @@ export async function scan(root: string, state: ScanState = newState(), ev: Scan
   const ignorePats = parseGitignore(root);
   const schemaFiles: [string, string, string[], boolean][] = [];
   const webhookFiles: [string, number, boolean, boolean][] = [];
+  /** JS/TS application source for the code-flow analysis (flow.ts). */
+  const flowFiles: (FlowFile & { lines: string[] })[] = [];
   const supabase = isDir(join(root, "supabase"));
 
   ev.onPhase?.("discover");
@@ -365,6 +368,7 @@ export async function scan(root: string, state: ScanState = newState(), ev: Scan
     state.files_scanned++;
     const inTest = RE.testPath.test(rel);
     if (inTest && category === "code") state.test_files++;
+    if (category === "code" && !inTest && FLOW_EXTS.has(ext)) flowFiles.push({ rel, ext, text: lines.join("\n"), lines });
     let context = inTest ? "test" : "source";
     if (category === "env") {
       const example = RE.exampleEnv.test(name);
@@ -429,6 +433,21 @@ export async function scan(root: string, state: ScanState = newState(), ev: Scan
   }
 
   ev.onPhase?.("analyze");
+  // Code-flow analysis (SEC044–SEC049). SAAS_AUDIT_ENGINE=regex turns it off (line rules only).
+  if (process.env.SAAS_AUDIT_ENGINE !== "regex" && !opts.signal?.aborted) {
+    const byRel = new Map(flowFiles.map((f) => [f.rel, f.lines]));
+    for (const h of analyzeFlows(root, flowFiles)) {
+      const src = byRel.get(h.rel) ?? [];
+      const at = src[h.line - 1] ?? "";
+      const f = makeFinding(h.id, h.title, h.severity, h.confidence, h.controls, h.rel, h.line, redact(at), h.guidance, "source");
+      const sup = RE.suppress.exec(at) ?? (h.line > 1 ? RE.suppress.exec(src[h.line - 2] ?? "") : null);
+      const ids = sup ? (sup.groups?.ids ?? "").split(",").map(pyStrip).filter(Boolean) : [];
+      if (sup && (!ids.length || ids.includes(h.id))) {
+        f.suppressed = pyStrip(sup.groups?.reason ?? "") || "no reason given";
+        state.suppressed.push(f);
+      } else emit(f);
+    }
+  }
   const rlsApp = supabase || Object.keys(state.packages).some((p) => p.startsWith("@supabase/"));
   analyzeSchemaFiles(schemaFiles, rlsApp).forEach(emit);
   for (const [rel, number, verified, idempotent] of webhookFiles) {

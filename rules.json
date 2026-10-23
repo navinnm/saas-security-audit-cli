@@ -2339,7 +2339,13 @@
   "SEC033": "Dependency manifest without a lockfile",
   "SEC034": "Webhook handler without visible idempotency handling",
   "SEC038": "RLS enabled but no policies defined",
-  "SEC039": "Prisma model without a tenant key in a multi-tenant schema"
+  "SEC039": "Prisma model without a tenant key in a multi-tenant schema",
+  "SEC044": "API route or server action with no login check",
+  "SEC045": "Record found by an id from the request with no owner check (IDOR)",
+  "SEC046": "Request body written straight to the database (mass assignment)",
+  "SEC047": "Owner, role or price taken from the request",
+  "SEC048": "Request input reaches raw SQL, a shell or eval (traced)",
+  "SEC049": "Request input picks where the server fetches or redirects (traced)"
  },
  "standards": {
   "SEC001": {
@@ -2742,6 +2748,74 @@
     "CWE-546"
    ],
    "kind": "design"
+  },
+  "SEC044": {
+   "owasp": "A01",
+   "api": [
+    "API2",
+    "API5"
+   ],
+   "llm": [],
+   "cwe": [
+    "CWE-306"
+   ],
+   "kind": "access"
+  },
+  "SEC045": {
+   "owasp": "A01",
+   "api": [
+    "API1"
+   ],
+   "llm": [],
+   "cwe": [
+    "CWE-639"
+   ],
+   "kind": "access"
+  },
+  "SEC046": {
+   "owasp": "A08",
+   "api": [
+    "API3"
+   ],
+   "llm": [],
+   "cwe": [
+    "CWE-915"
+   ],
+   "kind": "access"
+  },
+  "SEC047": {
+   "owasp": "A01",
+   "api": [
+    "API3"
+   ],
+   "llm": [],
+   "cwe": [
+    "CWE-639",
+    "CWE-602"
+   ],
+   "kind": "access"
+  },
+  "SEC048": {
+   "owasp": "A03",
+   "api": [],
+   "llm": [],
+   "cwe": [
+    "CWE-89",
+    "CWE-78"
+   ],
+   "kind": "injection"
+  },
+  "SEC049": {
+   "owasp": "A10",
+   "api": [
+    "API7"
+   ],
+   "llm": [],
+   "cwe": [
+    "CWE-918",
+    "CWE-601"
+   ],
+   "kind": "ssrf"
   }
  },
  "owasp_top10": {
@@ -2818,7 +2892,8 @@
   "CWE-1004": "Sensitive Cookie Without HttpOnly",
   "CWE-1104": "Unmaintained Third-party Components",
   "CWE-1426": "Improper Validation of Generative AI Output",
-  "CWE-1427": "Improper Neutralization of Input Used for LLM Prompting"
+  "CWE-1427": "Improper Neutralization of Input Used for LLM Prompting",
+  "CWE-306": "Missing Authentication for Critical Function"
  },
  "cwe_top25_2024": [
   "CWE-20",
@@ -3131,7 +3206,9 @@
    "id": "V3",
    "title": "Authorization only in the UI",
    "rules": [
-    "SEC040"
+    "SEC040",
+    "SEC044",
+    "SEC045"
    ]
   },
   {
@@ -3152,7 +3229,9 @@
    "id": "V6",
    "title": "Client can set protected fields",
    "rules": [
-    "SEC019"
+    "SEC019",
+    "SEC046",
+    "SEC047"
    ]
   },
   {
@@ -3184,7 +3263,8 @@
    "rules": [
     "SEC003",
     "SEC029",
-    "SEC013"
+    "SEC013",
+    "SEC048"
    ]
   },
   {

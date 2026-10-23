@@ -126,6 +126,8 @@ export const RULE_SHORT: Record<string, string> = {
   SEC029: "NoSQL injection", SEC030: "missing RLS", SEC031: "webhook signature", SEC032: "env not ignored",
   SEC033: "no lockfile", SEC034: "webhook idempotency", SEC035: "prompt injection", SEC036: "LLM output sink",
   SEC037: "long-lived token", SEC038: "RLS without policies", SEC039: "no tenant key",
+  SEC044: "no login check", SEC045: "IDOR", SEC046: "mass assignment", SEC047: "owner from request",
+  SEC048: "traced injection", SEC049: "traced SSRF/redirect",
 };
 
 export type PathRole = "source" | "build" | "docs" | "test" | "local env";
@@ -248,6 +250,12 @@ const ACTION_TITLE: Record<string, (list: Finding[]) => string> = {
   SEC024: (l) => `Use a password hashing function in ${namesOf(l)}`,
   SEC028: (l) => `Contain file paths built from request input in ${namesOf(l)}`,
   SEC036: (l) => `Stop passing LLM output to execution sinks in ${namesOf(l)}`,
+  SEC044: (l) => `Check sign-in in ${namesOf(l)}`,
+  SEC045: (l) => `Scope record lookups to their owner in ${namesOf(l)}`,
+  SEC046: (l) => `Pick allowed fields before writing in ${namesOf(l)}`,
+  SEC047: (l) => `Set owner, role and price on the server in ${namesOf(l)}`,
+  SEC048: (l) => `Keep request input out of SQL, shells and eval in ${namesOf(l)}`,
+  SEC049: (l) => `Allowlist fetch and redirect targets in ${namesOf(l)}`,
 };
 
 /** Every critical, then the high-severity rules, ordered by severity × number of hits. */
