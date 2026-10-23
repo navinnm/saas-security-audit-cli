@@ -2,7 +2,6 @@
  * Yes/No prompt from the redesign: a bordered box with a highlighted choice, keyboard
  * hints, and a safe default. Once answered it collapses to one line in the scrollback.
  */
-import { emitKeypressEvents } from "node:readline";
 import { MARGIN, P, bg, bold, box, c, contentWidth, fg } from "./theme.js";
 
 export interface AskOptions {
@@ -35,7 +34,12 @@ export function collapsed(question: string, answer: string | null, skippedReason
   return `${c.ok("✓")} ${question} ${bold(isYes ? c.accent(answer) : c.muted(answer))}`;
 }
 
-/** Ask in an interactive terminal. Resolves true/false, or null when cancelled with esc / ctrl+c. */
+/**
+ * Ask in an interactive terminal. Resolves true/false, or null when cancelled with esc / ctrl+c.
+ * Reads raw stdin bytes itself (not readline keypress events) and re-claims stdin with ref():
+ * after the Ink live panel unmounts, stdin is left unref'd and in utf8 mode, which would otherwise
+ * let the process exit while the prompt is on screen.
+ */
 export function ask(o: AskOptions): Promise<boolean | null> {
   const stdin = process.stdin;
   const out = process.stdout;
@@ -49,14 +53,14 @@ export function ask(o: AskOptions): Promise<boolean | null> {
     lines = frame.length;
   };
   return new Promise((resolveAnswer) => {
-    emitKeypressEvents(stdin);
     const wasRaw = stdin.isRaw;
     if (stdin.isTTY) stdin.setRawMode(true);
+    stdin.ref();
     stdin.resume();
     out.write("\x1b[?25l");
     draw();
     const finish = (answer: boolean | null) => {
-      stdin.off("keypress", onKey);
+      stdin.off("data", onData);
       if (stdin.isTTY) stdin.setRawMode(wasRaw);
       stdin.pause();
       out.write(`\x1b[${lines}F\x1b[0J\x1b[?25h`);
@@ -64,23 +68,15 @@ export function ask(o: AskOptions): Promise<boolean | null> {
       out.write(MARGIN + " " + collapsed(o.question, label, answer === null ? "cancelled" : undefined) + "\n");
       resolveAnswer(answer);
     };
-    const onKey = (str: string | undefined, key: { name?: string; ctrl?: boolean } = {}) => {
-      if (key.ctrl && key.name === "c") return finish(null);
-      switch (key.name) {
-        case "left": case "right": case "tab": case "h": case "l":
-          yes = !yes; return draw();
-        case "return": case "enter":
-          return finish(yes);
-        case "escape":
-          return finish(null);
-        case "y": return finish(true);
-        case "n": return finish(false);
-        default:
-          if (str === "y" || str === "Y") return finish(true);
-          if (str === "n" || str === "N") return finish(false);
-      }
+    const onData = (chunk: Buffer | string) => {
+      const key = typeof chunk === "string" ? chunk : chunk.toString("utf8");
+      if (key === "\x03" || key === "\x1b") return finish(null);                  // ctrl+c, esc
+      if (key === "\r" || key === "\n" || key === "\r\n") return finish(yes);    // enter
+      if (/^[yY]$/.test(key)) return finish(true);
+      if (/^[nN]$/.test(key)) return finish(false);
+      if (/^\x1b\[[CD]$|^\x1bO[CD]$|^\t$|^[hl]$/.test(key)) { yes = !yes; draw(); } // ← → tab h l
     };
-    stdin.on("keypress", onKey);
+    stdin.on("data", onData);
   });
 }
 

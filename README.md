@@ -53,6 +53,8 @@ saas-audit update                    Update to the latest version
 
 ### What you see in a terminal
 
+![Summary and verdict after a scan](https://raw.githubusercontent.com/navinnm/saas-security-audit-cli/main/docs/summary.png)
+
 1. **Welcome:** the target (project, path, detected stack, file count), the run settings, the six areas checked, and **"Start the scan now?"** (skip with `--yes`).
 2. **Live scan:** an overall progress bar, a five-step pipeline (Discover → Classify → Analyse → Correlate → Report) with ETA, running severity counts, six area cards, and the latest critical and high findings as they're found. Press **Ctrl+C** to get "Stop the scan at 72%?"; the default is to keep going, and stopping keeps the partial results.
 3. **Summary & verdict:** a release verdict (blocked, high-risk, gate passed, or clean), counts, where the worst findings live (application source vs generated build output), the severity shape, a by-area breakdown with the rules driving it, and the 22-control coverage grid.
@@ -77,7 +79,7 @@ saas-audit --output security-report.pdf --output security-report.html
 
 ```yaml
 - name: SaaS security scan
-  run: npx saas-security-audit@0.5.1 --fail-on high --format github --output security-report.md
+  run: npx saas-security-audit@0.5.2 --fail-on high --format github --output security-report.md
 ```
 
 `--format github` adds inline annotations on the pull request (errors for critical and high, warnings for medium), followed by the plain-text summary.

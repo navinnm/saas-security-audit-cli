@@ -121,7 +121,7 @@ test("pretty format without a TTY: all screens, no prompts, no colour", async ()
   await withResult(FIXTURES.vulnerableSaas, (_r, root) => {
     const r = spawnSync("node", [CLI, root, "--format", "pretty", "--no-update-check"], { encoding: "utf8", env: { ...process.env, NO_COLOR: "1" } });
     assert.equal(r.status, 0, r.stderr);
-    for (const s of ["OVERALL", "Scan complete", "WHERE THE", "SEVERITY SHAPE", "BY AREA", "CONTROL COVERAGE · 22", "FINDINGS", "FIX ORDER", "NEXT"]) {
+    for (const s of ["OVERALL", "Scan complete", "WHERE THE", "SEVERITY SHAPE", "BY AREA", "CONTROL COVERAGE", "FINDINGS", "FIX ORDER", "NEXT"]) {
       assert.ok(r.stdout.includes(s), `missing ${s}`);
     }
     assert.ok(!r.stdout.includes("Start the scan now?"), "no welcome prompt without a TTY");

@@ -40,6 +40,18 @@ function columns(left: string[], right: string[], leftWidth: number, gap = 4): s
   return Array.from({ length: n }, (_, i) => padEnd(left[i] ?? "", leftWidth) + " ".repeat(gap) + (right[i] ?? ""));
 }
 
+/**
+ * Section heading used on every screen: bold title, optional dim meta, optional right-aligned
+ * note, and a thin rule underneath that ties the title to the content indented below it.
+ */
+export function heading(title: string, width: number, meta = "", right = ""): string[] {
+  const left = `${bold(c.text(title.toUpperCase()))}${meta ? "  " + c.muted(meta) : ""}`;
+  return [right ? spread(left, c.dim(right), width) : left, fg("#2A313C", "─".repeat(Math.max(4, width)))];
+}
+/** Content sits two columns in from its heading. */
+const SUB = "  ";
+const sub = (lines: string[]) => lines.map((l) => (l ? SUB + l : l));
+
 const kv = (rows: [string, string][], keyWidth: number) => rows.map(([k, v]) => padEnd(c.muted(k), keyWidth) + v);
 const indent = (lines: string[], n = 1) => lines.map((l) => " ".repeat(n) + l);
 const rule = (w: number, color = P.line) => fg(color, "─".repeat(w));
@@ -92,15 +104,15 @@ export function welcomeScreen(i: WelcomeInfo): string[] {
 
   const half = Math.floor((w - 6) / 2);
   const stack = i.stack.length ? `${fit(i.stack.join(" · "), half - 26)} ${c.ok("✓ detected")}` : c.muted("not detected · generic rules");
-  const target = [label("target"), ...kv([
-    ["Project", bold(i.project)], ["Path", fit(i.path, half - 12)], ["Stack", stack], ["Files", `${num(i.files)} found`],
-  ], 12)];
-  const run = [label("run"), ...kv([
+  const target = [...heading("Target", half - 2), ...sub(kv([
+    ["Project", bold(i.project)], ["Path", fit(i.path, half - 14)], ["Stack", stack], ["Files", `${num(i.files)} found`],
+  ], 12))];
+  const run = [...heading("Run", half - 2), ...sub(kv([
     ["Mode", "offline · read-only"],
     ["Report", i.report ? i.report : c.muted("none · add --output report.html")],
     ["CI gate", i.failOn === "none" ? c.muted("off · add --fail-on high") : `on · fails on ${i.failOn} and above`],
     ["Controls", "22 across 6 areas"],
-  ], 12)];
+  ], 12))];
 
   const chips: string[] = [];
   let line = "";
@@ -119,8 +131,8 @@ export function welcomeScreen(i: WelcomeInfo): string[] {
     "",
     ...indent(columns(languageBlock(i.profile, half), folderBlock(i.profile, half), half), 2),
     "",
-    "  " + label("what gets checked"),
-    ...indent(chips, 2),
+    ...indent(heading("What gets checked", w - 4, "6 areas · 22 controls"), 2),
+    ...indent(sub(chips), 2),
     "",
   ];
 }
@@ -132,33 +144,33 @@ const ROLE_TEXT: Record<string, (s: string) => string> = {
 
 /** LANGUAGES: top languages by file count, with share and a gradient bar. */
 export function languageBlock(p: Profile, width: number, rows = 6): string[] {
-  const out = [label(`languages · ${p.languages.length}`)];
-  if (!p.languages.length) return [...out, c.muted("no source files recognised")];
+  const out = heading("Languages", width - 2, `${p.languages.length} detected`);
+  if (!p.languages.length) return [...out, SUB + c.muted("no source files recognised")];
   const nameW = 12;
   const barW = Math.max(6, Math.min(16, width - nameW - 22));
   const top = p.languages.slice(0, rows);
   top.forEach((l, k) => {
     const pct = `${Math.max(l.share * 100 < 1 ? 1 : 0, Math.round(l.share * 100))}%`;
-    out.push(`${padEnd(k === 0 ? bold(l.name) : l.name, nameW)} ${c.muted(padStart(num(l.files), 7))}  ${padStart(pct, 4)}  ${fg(rainbowAt(k / Math.max(1, rows - 1)), bar(l.share, top[0].share, barW))}`);
+    out.push(SUB + `${padEnd(k === 0 ? bold(l.name) : l.name, nameW)} ${c.muted(padStart(num(l.files), 7))}  ${padStart(pct, 4)}  ${fg(rainbowAt(k / Math.max(1, rows - 1)), bar(l.share, top[0].share, barW))}`);
   });
   const rest = p.languages.length - top.length;
   if (rest > 0 || p.otherFiles) {
-    out.push(c.dim([rest > 0 ? `+${rest} more language${rest === 1 ? "" : "s"}` : "", p.otherFiles ? `${num(p.otherFiles)} other files` : ""].filter(Boolean).join(" · ")));
+    out.push(SUB + c.dim([rest > 0 ? `+${rest} more language${rest === 1 ? "" : "s"}` : "", p.otherFiles ? `${num(p.otherFiles)} other files` : ""].filter(Boolean).join(" · ")));
   }
   return out;
 }
 
 /** FOLDERS: top-level folders by file count, with each folder's role. */
 export function folderBlock(p: Profile, width: number, rows = 6): string[] {
-  const out = [label(`folders · ${p.folders.length}`)];
-  const nameW = Math.max(14, Math.min(26, width - 26));
+  const out = heading("Folders", width - 2, `${p.folders.length} top-level`);
+  const nameW = Math.max(14, Math.min(24, width - 30));
   for (const f of p.folders.slice(0, rows)) {
-    out.push(`${padEnd(fit(f.name + "/", nameW), nameW)} ${c.muted(padStart(num(f.files), 7))}  ${ROLE_TEXT[f.role](f.role)}`);
+    out.push(SUB + `${padEnd(fit(f.name + "/", nameW), nameW)} ${c.muted(padStart(num(f.files), 7))}  ${ROLE_TEXT[f.role](f.role)}`);
   }
   const rest = p.folders.length - Math.min(rows, p.folders.length);
   const extras = [rest > 0 ? `+${rest} more folder${rest === 1 ? "" : "s"}` : "", p.rootFiles ? `${num(p.rootFiles)} files at root` : ""].filter(Boolean);
-  if (extras.length) out.push(c.dim(extras.join(" · ")));
-  if (p.skippedDirs.length) out.push(c.dim(`skipped: ${p.skippedDirs.join(" · ")}`));
+  if (extras.length) out.push(SUB + c.dim(extras.join(" · ")));
+  if (p.skippedDirs.length) out.push(SUB + c.dim(`skipped: ${p.skippedDirs.join(" · ")}`));
   return out;
 }
 
@@ -203,8 +215,8 @@ export function liveFrame(s: LiveState): string {
   out.push(...topBand(s.overall, `step ${s.stepIndex + 1} of ${s.steps.length} · ${active?.name ?? "Done"} · ${s.elapsed.toFixed(1)}s elapsed${eta}`, W));
   out.push(...headerLine(s.info), "");
 
-  out.push(" " + label("pipeline"));
-  const barW = Math.max(10, Math.min(40, w - 70));
+  out.push(...indent(heading("Pipeline", w, `step ${s.stepIndex + 1} of ${s.steps.length}`)));
+  const barW = Math.max(10, Math.min(40, w - 72));
   for (const st of s.steps) {
     const icon = st.state === "done" ? c.ok("✓") : st.state === "active" ? bold(c.accent(SPIN[s.frame % SPIN.length])) : c.dim("○");
     const name = st.state === "pending" ? c.dim(st.name.padEnd(12)) : st.state === "active" ? bold(st.name.padEnd(12)) : st.name.padEnd(12);
@@ -215,22 +227,22 @@ export function liveFrame(s: LiveState): string {
       detail = `${rainbowProgress(frac, barW)}  ${bold(`${Math.round(frac * 100)}%`)}  ${c.muted(`${num(s.analyse.done)} / ${num(s.analyse.total)} files`)}`;
       time = s.analyse.eta ? c.muted(`ETA ${s.analyse.eta}`) : "";
     } else detail = st.state === "pending" ? c.dim(st.detail) : c.muted(st.detail);
-    out.push(" " + spread(`${icon}  ${name} ${detail}`, time, w));
+    out.push(" " + SUB + spread(`${icon}  ${name} ${detail}`, time, w - 2));
   }
-  if (s.current) out.push(`    ${c.dim("↳")} ${c.muted(fit(s.current, w - 6))}`);
+  if (s.current) out.push(`      ${c.dim("↳")} ${c.muted(fit(s.current, w - 8))}`);
   out.push("");
 
-  out.push(" " + label("leads so far"));
+  // LEADS SO FAR: severity totals on the header line, the same leads split by area right below.
   const counts = ["Critical", "High", "Medium", "Low"].map((sev) => `${badge(sev)} ${padEnd(bold(num(s.counts[sev] ?? 0)), 6)}`).join("  ");
-  out.push(" " + spread(counts, c.muted("running total · not final"), w), "");
+  out.push(...indent(heading("Leads so far", w, "", "running total · not final")));
+  out.push(" " + SUB + counts);
 
-  // Fit the rest to the terminal height.
+  // Fit the area breakdown to the terminal height.
   const used = out.length + 3;
   const room = s.height - used - (s.prompt ? s.prompt.length + 1 : 3);
   const sorted = [...s.areaTotals].sort((a, b) => Number(b.total > 0) - Number(a.total > 0));
   if (room >= 10) {
-    out.push(" " + label("by area"));
-    const cardW = Math.floor((w - 4) / 3);
+    const cardW = Math.floor((w - 6) / 3);
     const cards = sorted.map((a) => {
       const sub = a.total === 0 ? c.dim(a.signals ? "no leads · needs manual review" : "no signals · needs manual review")
         : a.crit ? c.crit(`▲ ${num(a.crit)} critical`) : a.high ? c.high(`▲ ${num(a.high)} high`) : c.muted("medium and low only");
@@ -239,25 +251,23 @@ export function liveFrame(s: LiveState): string {
     });
     for (let r = 0; r < cards.length; r += 3) {
       const row = cards.slice(r, r + 3);
-      for (let line = 0; line < row[0].length; line++) out.push(" " + row.map((card) => card[line]).join("  "));
+      for (let line = 0; line < row[0].length; line++) out.push(" " + SUB + row.map((card) => card[line]).join("  "));
     }
-    out.push("");
-  } else if (room >= 4) {
-    out.push(" " + label("by area"));
+  } else if (room >= 3) {
     const cells = sorted.map((a) => `${padEnd(a.total ? a.label : c.muted(a.label), 27)} ${a.total ? bold(padStart(num(a.total), 6)) : c.muted(padStart("—", 6))}`);
-    for (let i = 0; i < cells.length; i += 2) out.push(" " + padEnd(cells[i], Math.floor(w / 2)) + (cells[i + 1] ?? ""));
-    out.push("");
+    for (let i = 0; i < cells.length; i += 2) out.push(" " + SUB + padEnd(cells[i], Math.floor(w / 2)) + (cells[i + 1] ?? ""));
   }
+  out.push("");
 
   const latestRoom = Math.max(0, s.height - out.length - (s.prompt ? s.prompt.length + 1 : 3) - 2);
   if (latestRoom >= 2) {
-    out.push(" " + spread(label("latest critical & high"), c.dim("medium and low are counted, not streamed"), w));
-    const rows = s.latest.slice(0, Math.min(5, latestRoom - 1));
-    if (!rows.length) out.push("  " + c.dim("none yet"));
+    out.push(...indent(heading("Latest critical & high", w, "", "medium and low are counted, not streamed")));
+    const rows = s.latest.slice(0, Math.min(5, latestRoom - 2));
+    if (!rows.length) out.push(" " + SUB + c.dim("none yet"));
     for (const f of rows) {
       const titleW = 30;
       const pathW = Math.min(52, w - 6 - 2 - 7 - 2 - titleW - 4);
-      out.push(`  ${badge(f.severity)}  ${c.muted(f.id.padEnd(7))} ${padEnd(fit(`${f.file}:${f.line}`, pathW), pathW)}  ${c.muted(fit(RULE_SHORT[f.id] ? capitalizeFirst(shortTitle(f)) : f.title, titleW))}`);
+      out.push(` ${SUB}${badge(f.severity)}  ${c.muted(f.id.padEnd(7))} ${padEnd(fit(`${f.file}:${f.line}`, pathW), pathW)}  ${c.muted(fit(RULE_SHORT[f.id] ? capitalizeFirst(shortTitle(f)) : f.title, titleW))}`);
     }
     out.push("");
   }
@@ -321,37 +331,37 @@ export function summaryScreen(result: Result, i: SummaryInfo): { lines: string[]
   const left: string[] = [];
   if (worst) {
     const noun = worst.severity === "Critical" ? "critical" : "high";
-    left.push(label(`where the ${num(worst.total)} ${worst.total === 1 ? `${noun} is` : `${noun}s are`}`));
+    left.push(...heading(`Where the ${num(worst.total)} ${worst.total === 1 ? `${noun} is` : `${noun}s are`}`, half - 2));
     for (const g of worst.groups.slice(0, 4)) {
       const ratio = `${g.count} / ${worst.total}`;
-      left.push(`${padEnd(g.role === "source" ? bold(sevText(worst.severity, ratio)) : bold(c.muted(ratio)), 9)}  ${fit(shortDir(g.dir), half - 12)}`);
-      left.push(`${" ".repeat(11)}${c.muted(fit(g.label, half - 12))}`);
+      left.push(SUB + `${padEnd(g.role === "source" ? bold(sevText(worst.severity, ratio)) : bold(c.muted(ratio)), 9)}  ${fit(shortDir(g.dir), half - 14)}`);
+      left.push(SUB + `${" ".repeat(11)}${c.muted(fit(g.label, half - 14))}`);
     }
-    if (worst.groups.length > 4) left.push(c.dim(`${" ".repeat(11)}+${worst.groups.length - 4} more places`));
+    if (worst.groups.length > 4) left.push(SUB + c.dim(`${" ".repeat(11)}+${worst.groups.length - 4} more places`));
   }
   const totalSource = SEVERITY_ORDER.reduce((a, sev) => a + (v.sourceCounts[sev] ?? 0), 0);
   const maxCount = Math.max(1, ...["Critical", "High", "Medium", "Low"].map((sev) => v.sourceCounts[sev] ?? 0));
-  const right = [label(`severity shape · ${num(totalSource)} in source`)];
-  const barW = Math.max(8, half - 18);
+  const right = heading("Severity shape", half - 2, `${num(totalSource)} in source`);
+  const barW = Math.max(8, half - 20);
   for (const sev of ["Critical", "High", "Medium", "Low"]) {
     const n = v.sourceCounts[sev] ?? 0;
-    right.push(`${sevText(sev, SEV_LOWER[sev].padEnd(5))} ${padStart(num(n), 7)}  ${sevText(sev, bar(n, maxCount, barW))}`);
+    right.push(SUB + `${sevText(sev, SEV_LOWER[sev].padEnd(5))} ${padStart(num(n), 7)}  ${sevText(sev, bar(n, maxCount, barW))}`);
   }
-  if (v.hidden.length) right.push(c.dim(`+${num(v.hidden.length)} more in test files and local env files · shown on request`));
+  if (v.hidden.length) right.push(SUB + c.dim(`+${num(v.hidden.length)} more in tests and local env files · on request`));
   out.push(...indent(worst ? columns(left, right, half) : right), "");
 
   // By area
   const areaList = areas(v.shown, GROUPS, result).sort((a, b) => b.total - a.total);
   const maxArea = Math.max(1, ...areaList.map((a) => a.total));
-  out.push(" " + label("by area"));
-  out.push(" " + `${c.dim("AREA".padEnd(28))}${c.dim(padStart("LEADS", 8))}  ${c.dim("".padEnd(22))}${c.dim("DRIVEN BY")}`);
+  out.push(...indent(heading("By area", w, `${areaList.filter((a) => a.total).length} of 6 with leads`)));
+  out.push(" " + SUB + `${c.dim("AREA".padEnd(28))}${c.dim(padStart("LEADS", 8))}  ${c.dim("".padEnd(22))}${c.dim("DRIVEN BY")}`);
   for (const a of areaList) {
     if (!a.total) {
-      out.push(" " + `${c.muted(a.label.padEnd(28))}${c.muted(padStart("—", 8))}  ${"".padEnd(22)}${c.dim(a.hasSignals ? "no leads · not proven safe" : "no signals · not proven safe")}`);
+      out.push(" " + SUB + `${c.muted(a.label.padEnd(28))}${c.muted(padStart("—", 8))}  ${"".padEnd(22)}${c.dim(a.hasSignals ? "no leads · not proven safe" : "no signals · not proven safe")}`);
       continue;
     }
     const driven = a.topRules.slice(0, 2).map((r) => `${r.id} ${RULE_SHORT[r.id] ?? ""} ×${num(r.count)}`).join(" · ");
-    out.push(" " + `${a.label.padEnd(28)}${bold(padStart(num(a.total), 8))}  ${padEnd(c.accent(bar(a.total, maxArea, 20)), 22)}${c.muted(fit(driven, w - 60))}`);
+    out.push(" " + SUB + `${a.label.padEnd(28)}${bold(padStart(num(a.total), 8))}  ${padEnd(c.accent(bar(a.total, maxArea, 20)), 22)}${c.muted(fit(driven, w - 62))}`);
   }
   out.push("");
 
@@ -359,10 +369,10 @@ export function summaryScreen(result: Result, i: SummaryInfo): { lines: string[]
   if (i.profile) out.push(...byFolder(v.shown, i.profile, w), "");
 
   // Control coverage grid
-  out.push(" " + spread(label("control coverage · 22"), c.dim("a control passes only when enforcement is located and tested"), w));
+  out.push(...indent(heading("Control coverage", w, "22 controls", "a control passes only when enforcement is located and tested")));
   const leadIds = new Set(v.coverage.leads.map((r) => r.id));
   const noneIds = new Set(v.coverage.noSignals.map((r) => r.id));
-  const cellW = Math.max(6, Math.floor((w - 10) / 11) - 1);
+  const cellW = Math.max(6, Math.floor((w - 12) / 11) - 1);
   for (let row = 0; row < 2; row++) {
     const cells: string[] = [];
     for (let id = row * 11 + 1; id <= row * 11 + 11; id++) {
@@ -372,11 +382,11 @@ export function summaryScreen(result: Result, i: SummaryInfo): { lines: string[]
       const centered = txt.padStart(Math.floor((cellW + txt.length) / 2)).padEnd(cellW);
       cells.push(lead ? bg("#2B2210", P.med, centered) : none ? bg("#0F1A13", P.ok, centered) : bg("#161B22", P.muted, centered));
     }
-    out.push(" " + cells.join(" "));
+    out.push(" " + SUB + cells.join(" "));
   }
-  out.push(" " + spread(
+  out.push(" " + SUB + spread(
     `${c.med(`◐ ${v.coverage.leads.length} leads to verify`)}    ${c.ok(`○ ${v.coverage.noSignals.length} no signals`)}    ${c.muted(`┄ ${v.coverage.notVerified.length} not verified · manual review`)}`,
-    c.dim("0 passed"), w), "");
+    c.dim("0 passed"), w - 2), "");
 
   // Footer
   out.push(" " + rule(w));
@@ -402,19 +412,18 @@ function byFolder(shown: Finding[], p: Profile, w: number): string[] {
     counts.set(top, k);
   }
   const rows = [...counts.entries()].sort((a, b) => b[1].crit - a[1].crit || b[1].high - a[1].high || b[1].total - a[1].total);
-  const out = [" " + spread(label(`by folder · ${p.folders.length} top-level`), c.dim(p.languages.slice(0, 3).map((l) => `${l.name} ${Math.round(l.share * 100)}%`).join(" · ")), w)];
-  if (!rows.length) return [...out, " " + c.muted("no leads in any folder")];
-  const nameW = Math.min(30, Math.max(16, w - 70));
-  out.push(" " + `${c.dim("FOLDER".padEnd(nameW))}${c.dim(padStart("FILES", 8))}${c.dim(padStart("LEADS", 8))}  ${c.dim("CRIT".padStart(5))} ${c.dim("HIGH".padStart(5))}   ${c.dim("ROLE")}`);
-  const max = Math.max(...rows.map(([, k]) => k.total));
+  const out = indent(heading("By folder", w, `${p.folders.length} top-level`, p.languages.slice(0, 3).map((l) => `${l.name} ${l.share > 0 && l.share < 0.005 ? "<1" : Math.round(l.share * 100)}%`).join(" · ")));
+  if (!rows.length) return [...out, " " + SUB + c.muted("no leads in any folder")];
+  const nameW = Math.min(30, Math.max(16, w - 72));
+  out.push(" " + SUB + `${c.dim("FOLDER".padEnd(nameW))}${c.dim(padStart("FILES", 8))}${c.dim(padStart("LEADS", 8))}  ${c.dim("CRIT".padStart(5))} ${c.dim("HIGH".padStart(5))}   ${c.dim("ROLE")}`);
   for (const [name, k] of rows.slice(0, 8)) {
     const meta = filesIn.get(name);
     const role = name === "(root)" ? "root files" : meta?.role ?? "source";
     const display = name === "(root)" ? "(repo root)" : name + "/";
-    out.push(" " + `${padEnd(fit(display, nameW - 1), nameW)}${c.muted(padStart(meta ? num(meta.files) : name === "(root)" ? num(p.rootFiles) : "—", 8))}${bold(padStart(num(k.total), 8))}  ${k.crit ? c.crit(padStart(num(k.crit), 5)) : c.dim(padStart("–", 5))} ${k.high ? c.high(padStart(num(k.high), 5)) : c.dim(padStart("–", 5))}   ${padEnd((ROLE_TEXT[role] ?? ((s: string) => c.muted(s)))(role), 14)} ${c.accent(bar(k.total, max, 12))}`);
+    out.push(" " + SUB + `${padEnd(fit(display, nameW - 1), nameW)}${c.muted(padStart(meta ? num(meta.files) : name === "(root)" ? num(p.rootFiles) : "—", 8))}${bold(padStart(num(k.total), 8))}  ${k.crit ? c.crit(padStart(num(k.crit), 5)) : c.dim(padStart("–", 5))} ${k.high ? c.high(padStart(num(k.high), 5)) : c.dim(padStart("–", 5))}   ${(ROLE_TEXT[role] ?? ((s: string) => c.muted(s)))(role)}`);
   }
   const quiet = p.folders.length - rows.filter(([n]) => n !== "(root)").length;
-  if (rows.length > 8 || quiet > 0) out.push(" " + c.dim([rows.length > 8 ? `+${rows.length - 8} more folders with leads` : "", quiet > 0 ? `${quiet} folder${quiet === 1 ? "" : "s"} with no leads` : ""].filter(Boolean).join(" · ")));
+  if (rows.length > 8 || quiet > 0) out.push(" " + SUB + c.dim([rows.length > 8 ? `+${rows.length - 8} more folders with leads` : "", quiet > 0 ? `${quiet} folder${quiet === 1 ? "" : "s"} with no leads` : ""].filter(Boolean).join(" · ")));
   return out;
 }
 
@@ -497,7 +506,7 @@ export function findingsScreen(i: FindingsInfo): string[] {
   const expanded = rules.filter(([, l]) => i.all || worst(l) >= SEVERITY_RANK.High);
   const collapsedRules = rules.filter(([, l]) => !i.all && worst(l) < SEVERITY_RANK.High);
   const out: string[] = [];
-  out.push(" " + spread(`${bold("FINDINGS")}  ${c.muted(`${num(i.findings.length)} ${i.scope ?? "in source"} · ${rules.length} rules · grouped by rule, worst first`)}`, c.dim("--group rule · --sort severity"), w));
+  out.push(...indent(heading("Findings", w, `${num(i.findings.length)} ${i.scope ?? "in source"} · ${rules.length} rules · grouped by rule, worst first`, "--group rule · --sort severity")));
   if (!rules.length) {
     out.push("", "  " + c.ok("No leads in source code.") + " " + c.muted("That isn't proof of security — the controls still need verifying."), "");
     return out;
@@ -510,7 +519,7 @@ export function findingsScreen(i: FindingsInfo): string[] {
     const total = collapsedRules.reduce((a, [, l]) => a + l.length, 0);
     const max = Math.max(...collapsedRules.map(([, l]) => l.length));
     out.push(" " + fg("#1C232C", "─".repeat(w)));
-    out.push(" " + spread(label(`medium & low · ${num(total)} · collapsed`), c.dim("expand with --all"), w));
+    out.push("", ...indent(heading("Medium & low", w, `${num(total)} · collapsed`, "expand with --all")));
     const titleW = Math.max(20, w - 7 - 2 - 7 - 2 - 22 - 4);
     for (const [id, list] of collapsedRules) {
       const sev = list.some((f) => f.severity === "Medium") ? "Medium" : list[0].severity;
@@ -542,9 +551,9 @@ export function fixScreen(i: FixInfo): string[] {
   const MAX_ACTIONS = 8;
   const actions = allActions.slice(0, MAX_ACTIONS);
   const out: string[] = [];
-  out.push(" " + spread(`${bold("FIX ORDER")}  ${c.muted(actions.length
+  out.push(...indent(heading("Fix order", w, allActions.length
     ? `${allActions.length} action${allActions.length === 1 ? "" : "s"} · every critical, then the high-severity rules`
-    : "no critical or high-severity leads in source code")}`, c.dim("ordered by severity × blast radius"), w));
+    : "no critical or high-severity leads in source code", "ordered by severity × blast radius")));
   out.push("");
   actions.forEach((a, n) => {
     const numCell = bold(bg(a.severity === "Critical" ? "#F85149" : "#3D2A14", a.severity === "Critical" ? "#140203" : P.high, ` ${n + 1} `.padEnd(4)));
@@ -573,7 +582,7 @@ export function fixScreen(i: FixInfo): string[] {
     ], boxW, "#30363D", true)), "");
   }
 
-  out.push(" " + label("next"));
+  out.push(...indent(heading("Next", w)));
   const opener = process.platform === "darwin" ? "open" : process.platform === "win32" ? "start" : "xdg-open";
   const topRule = actions[0]?.tags[0]?.split(" ")[0] ?? i.view.guidance[0]?.id;
   out.push(...indent(kv([
