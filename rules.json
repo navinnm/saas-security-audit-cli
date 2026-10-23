@@ -1,0 +1,2196 @@
+{
+ "generated_from": "saas-security-audit plugin scripts/scan.py",
+ "version": "0.3.0",
+ "schema_version": 3,
+ "controls": [
+  "Row-level security and tenant isolation",
+  "Authentication and authorization on every API route",
+  "Server-side enforcement of permissions and business rules",
+  "Rate limiting and abuse prevention",
+  "Input validation, output encoding, and safe deserialization",
+  "Parameterized database queries",
+  "CORS allowlist and credential policy",
+  "HTTPS, secure cookies, and trusted proxy configuration",
+  "IDOR/BOLA and object-level authorization",
+  "Production debug mode and safe error handling",
+  "CAPTCHA or proportionate anti-automation controls",
+  "Admin and security audit logging",
+  "Private storage and authorized file access",
+  "Admin interface and privileged-operation protection",
+  "Dependency vulnerability management and secret exposure",
+  "File upload security",
+  "Independent AI-assisted review",
+  "Security headers",
+  "Webhook authenticity, replay protection, and idempotency",
+  "SSRF and outbound egress control",
+  "JWT and session lifecycle security",
+  "AI/LLM security and prompt injection"
+ ],
+ "severity_rank": {
+  "Critical": 4,
+  "High": 3,
+  "Medium": 2,
+  "Low": 1,
+  "Informational": 0
+ },
+ "skip_dirs": [
+  ".git",
+  ".hg",
+  ".idea",
+  ".mypy_cache",
+  ".next",
+  ".nuxt",
+  ".output",
+  ".pytest_cache",
+  ".serverless",
+  ".svelte-kit",
+  ".svn",
+  ".terraform",
+  ".tox",
+  ".turbo",
+  ".venv",
+  ".vercel",
+  ".vscode",
+  ".yarn",
+  "Pods",
+  "__pycache__",
+  "bin",
+  "bower_components",
+  "build",
+  "coverage",
+  "dist",
+  "env",
+  "node_modules",
+  "obj",
+  "security-reports",
+  "target",
+  "vendor",
+  "venv"
+ ],
+ "code_exts": [
+  ".bash",
+  ".cjs",
+  ".cs",
+  ".ejs",
+  ".erb",
+  ".go",
+  ".hbs",
+  ".htm",
+  ".html",
+  ".j2",
+  ".java",
+  ".jinja",
+  ".jinja2",
+  ".js",
+  ".jsx",
+  ".kt",
+  ".mjs",
+  ".njk",
+  ".php",
+  ".py",
+  ".rb",
+  ".rs",
+  ".scala",
+  ".sh",
+  ".svelte",
+  ".swift",
+  ".ts",
+  ".tsx",
+  ".twig",
+  ".vue"
+ ],
+ "config_exts": [
+  ".cfg",
+  ".conf",
+  ".config",
+  ".env",
+  ".ini",
+  ".json",
+  ".prisma",
+  ".properties",
+  ".rules",
+  ".tf",
+  ".tfvars",
+  ".toml",
+  ".xml",
+  ".yaml",
+  ".yml"
+ ],
+ "sql_exts": [
+  ".sql"
+ ],
+ "doc_exts": [
+  ".md",
+  ".rst",
+  ".txt"
+ ],
+ "config_names": [
+  ".htaccess",
+  "Caddyfile",
+  "Dockerfile",
+  "Gemfile",
+  "Makefile",
+  "Pipfile",
+  "Procfile",
+  "nginx.conf"
+ ],
+ "lockfiles": [
+  "Cargo.lock",
+  "Gemfile.lock",
+  "Pipfile.lock",
+  "bun.lock",
+  "bun.lockb",
+  "composer.lock",
+  "go.sum",
+  "npm-shrinkwrap.json",
+  "package-lock.json",
+  "pnpm-lock.yaml",
+  "poetry.lock",
+  "uv.lock",
+  "yarn.lock"
+ ],
+ "manifests": {
+  "package.json": "npm",
+  "requirements.txt": "PyPI",
+  "pyproject.toml": "PyPI",
+  "Pipfile": "PyPI",
+  "Gemfile": "RubyGems",
+  "composer.json": "Packagist",
+  "go.mod": "Go",
+  "Cargo.toml": "crates.io",
+  "pom.xml": "Maven",
+  "build.gradle": "Gradle",
+  "build.gradle.kts": "Gradle"
+ },
+ "lock_for": {
+  "package.json": [
+   "bun.lock",
+   "bun.lockb",
+   "npm-shrinkwrap.json",
+   "package-lock.json",
+   "pnpm-lock.yaml",
+   "yarn.lock"
+  ],
+  "Gemfile": [
+   "Gemfile.lock"
+  ],
+  "composer.json": [
+   "composer.lock"
+  ]
+ },
+ "dep_tools": {
+  "npm": [
+   {
+    "command": "npm audit --omit=dev",
+    "binary": "npm",
+    "network": true
+   },
+   {
+    "command": "osv-scanner scan -r .",
+    "binary": "osv-scanner",
+    "network": true
+   }
+  ],
+  "PyPI": [
+   {
+    "command": "pip-audit",
+    "binary": "pip-audit",
+    "network": true
+   },
+   {
+    "command": "osv-scanner scan -r .",
+    "binary": "osv-scanner",
+    "network": true
+   }
+  ],
+  "RubyGems": [
+   {
+    "command": "bundle-audit check --update",
+    "binary": "bundle-audit",
+    "network": true
+   }
+  ],
+  "Packagist": [
+   {
+    "command": "composer audit",
+    "binary": "composer",
+    "network": true
+   }
+  ],
+  "Go": [
+   {
+    "command": "govulncheck ./...",
+    "binary": "govulncheck",
+    "network": true
+   }
+  ],
+  "crates.io": [
+   {
+    "command": "cargo audit",
+    "binary": "cargo-audit",
+    "network": true
+   }
+  ],
+  "Maven": [
+   {
+    "command": "osv-scanner scan -r .",
+    "binary": "osv-scanner",
+    "network": true
+   }
+  ],
+  "Gradle": [
+   {
+    "command": "osv-scanner scan -r .",
+    "binary": "osv-scanner",
+    "network": true
+   }
+  ]
+ },
+ "general_tools": [
+  {
+   "command": "gitleaks dir . --redact",
+   "binary": "gitleaks",
+   "network": false
+  },
+  {
+   "command": "semgrep scan --config p/owasp-top-ten",
+   "binary": "semgrep",
+   "network": true
+  },
+  {
+   "command": "trivy fs --scanners vuln,secret,misconfig .",
+   "binary": "trivy",
+   "network": true
+  }
+ ],
+ "max_bytes": 1500000,
+ "max_line": 4000,
+ "max_signal_locations": 8,
+ "comment_prefixes": [
+  "#",
+  "//",
+  "/*",
+  "*",
+  "--",
+  "<!--",
+  ";"
+ ],
+ "rules": [
+  {
+   "id": "SEC002",
+   "title": "Dynamic code evaluation",
+   "severity": "High",
+   "confidence": "medium",
+   "controls": [
+    5
+   ],
+   "scope": [
+    "code"
+   ],
+   "skip_comments": true,
+   "guidance": "Never evaluate request-influenced strings; use explicit parsers and allowlisted operations.",
+   "patterns": [
+    {
+     "source": "(?<![\\w.$])eval\\s*\\(",
+     "flags": "",
+     "exts": null
+    },
+    {
+     "source": "(?<![\\w.$])exec\\s*\\(",
+     "flags": "",
+     "exts": [
+      ".py"
+     ]
+    },
+    {
+     "source": "\\bnew\\s+Function\\s*\\(",
+     "flags": "",
+     "exts": [
+      ".cjs",
+      ".js",
+      ".jsx",
+      ".mjs",
+      ".svelte",
+      ".ts",
+      ".tsx",
+      ".vue"
+     ]
+    },
+    {
+     "source": "\\bset(?:Timeout|Interval)\\s*\\(\\s*[\\\"'`]",
+     "flags": "",
+     "exts": [
+      ".cjs",
+      ".js",
+      ".jsx",
+      ".mjs",
+      ".svelte",
+      ".ts",
+      ".tsx",
+      ".vue"
+     ]
+    },
+    {
+     "source": "\\bvm\\.run(?:In\\w*Context)?\\s*\\(",
+     "flags": "",
+     "exts": [
+      ".cjs",
+      ".js",
+      ".jsx",
+      ".mjs",
+      ".svelte",
+      ".ts",
+      ".tsx",
+      ".vue"
+     ]
+    }
+   ]
+  },
+  {
+   "id": "SEC003",
+   "title": "SQL built with string interpolation or concatenation",
+   "severity": "High",
+   "confidence": "medium",
+   "controls": [
+    6,
+    1
+   ],
+   "scope": [
+    "code"
+   ],
+   "skip_comments": true,
+   "guidance": "Use bound parameters or tagged/query-builder APIs. Identifiers (columns, sort order) must come from an allowlist.",
+   "patterns": [
+    {
+     "source": "\\b(?:execute|executemany|executescript|query|raw|exec_query|find_by_sql|whereRaw|selectRaw|orderByRaw|havingRaw|\\$queryRawUnsafe|\\$executeRawUnsafe|unsafe)\\s*\\(\\s*f[\\\"']",
+     "flags": "i",
+     "exts": null
+    },
+    {
+     "source": "\\b(?:execute|executemany|executescript|query|raw|exec_query|find_by_sql|whereRaw|selectRaw|orderByRaw|havingRaw|\\$queryRawUnsafe|\\$executeRawUnsafe|unsafe)\\s*\\(\\s*`[^`]*\\$\\{",
+     "flags": "i",
+     "exts": null
+    },
+    {
+     "source": "\\b(?:execute|executemany|executescript|query|raw|exec_query|find_by_sql|whereRaw|selectRaw|orderByRaw|havingRaw|\\$queryRawUnsafe|\\$executeRawUnsafe|unsafe)\\s*\\(\\s*[\\\"'][^\\\"']*[\\\"']\\s*(?:\\+|\\.\\s*\\$|\\.format\\s*\\(|%\\s*[\\w(\\[{])",
+     "flags": "i",
+     "exts": null
+    },
+    {
+     "source": "\\b(?:SELECT|INSERT\\s+INTO|UPDATE|DELETE\\s+FROM)\\b[^\\\"'\\n]*[\\\"']\\s*(?:\\+\\s*[A-Za-z_$]|\\.\\s*\\$|\\.format\\s*\\(|%\\s*[\\w(\\[{])",
+     "flags": "",
+     "exts": null
+    },
+    {
+     "source": "\\bf[\\\"'][^\\\"'\\n]*\\b(?:SELECT|INSERT\\s+INTO|UPDATE|DELETE\\s+FROM)\\b[^\\\"'\\n]*\\{",
+     "flags": "",
+     "exts": null
+    },
+    {
+     "source": "(?<![\\w$.])`[^`\\n]*\\b(?:SELECT|INSERT\\s+INTO|UPDATE|DELETE\\s+FROM)\\b[^`\\n]*\\$\\{",
+     "flags": "",
+     "exts": [
+      ".cjs",
+      ".js",
+      ".jsx",
+      ".mjs",
+      ".svelte",
+      ".ts",
+      ".tsx",
+      ".vue"
+     ]
+    },
+    {
+     "source": "\\\"[^\\\"\\n]*\\b(?:SELECT|INSERT\\s+INTO|UPDATE|DELETE\\s+FROM)\\b[^\\\"\\n]*#\\{",
+     "flags": "",
+     "exts": [
+      ".rb"
+     ]
+    },
+    {
+     "source": "\\\"[^\\\"\\n]*\\b(?:SELECT|INSERT\\s+INTO|UPDATE|DELETE\\s+FROM)\\b[^\\\"\\n]*\\$\\w",
+     "flags": "",
+     "exts": [
+      ".php"
+     ]
+    },
+    {
+     "source": "Sprintf\\(\\s*\\\"[^\\\"]*\\b(?:SELECT|INSERT\\s+INTO|UPDATE|DELETE\\s+FROM)\\b",
+     "flags": "",
+     "exts": [
+      ".go"
+     ]
+    }
+   ]
+  },
+  {
+   "id": "SEC004",
+   "title": "Debug mode or verbose errors may be enabled",
+   "severity": "Medium",
+   "confidence": "low",
+   "controls": [
+    10
+   ],
+   "scope": [
+    "code",
+    "config",
+    "env"
+   ],
+   "skip_comments": true,
+   "guidance": "Confirm which environment loads this value; production must not expose debug pages or stack traces.",
+   "patterns": [
+    {
+     "source": "\\b(?:DEBUG|APP_DEBUG|FLASK_DEBUG)\\s*[:=]\\s*[\\\"']?(?:true|1|on|yes)\\b",
+     "flags": "i",
+     "exts": null
+    },
+    {
+     "source": "\\bapp\\.run\\([^)\\n]*debug\\s*=\\s*True",
+     "flags": "",
+     "exts": null
+    },
+    {
+     "source": "\\bdisplay_errors\\s*=\\s*(?:on|1)\\b",
+     "flags": "i",
+     "exts": null
+    },
+    {
+     "source": "consider_all_requests_local\\s*=\\s*true",
+     "flags": "",
+     "exts": null
+    },
+    {
+     "source": "\\bdebug\\s*:\\s*true\\b",
+     "flags": "i",
+     "exts": null
+    }
+   ]
+  },
+  {
+   "id": "SEC005",
+   "title": "Permissive CORS policy",
+   "severity": "High",
+   "confidence": "medium",
+   "controls": [
+    7
+   ],
+   "scope": [
+    "code",
+    "config",
+    "env"
+   ],
+   "skip_comments": true,
+   "guidance": "Use an explicit origin allowlist. Reflecting any origin with credentials lets any site act as the user.",
+   "patterns": [
+    {
+     "source": "Access-Control-Allow-Origin[\\\"']?\\s*[:,=]\\s*[\\\"']\\*[\\\"']",
+     "flags": "i",
+     "exts": null
+    },
+    {
+     "source": "\\ballow_origins\\s*=\\s*\\[\\s*[\\\"']\\*[\\\"']",
+     "flags": "i",
+     "exts": null
+    },
+    {
+     "source": "\\bCORS_(?:ORIGIN_)?ALLOW_ALL(?:_ORIGINS)?\\s*=\\s*True",
+     "flags": "i",
+     "exts": null
+    },
+    {
+     "source": "\\borigin\\s*:\\s*(?:[\\\"']\\*[\\\"']|true\\b)",
+     "flags": "",
+     "exts": null
+    },
+    {
+     "source": "\\bAllowAllOrigins\\s*:\\s*true",
+     "flags": "",
+     "exts": null
+    },
+    {
+     "source": "\\.AllowAnyOrigin\\s*\\(",
+     "flags": "",
+     "exts": null
+    },
+    {
+     "source": "(?<![\\w.])cors\\(\\s*\\)",
+     "flags": "",
+     "exts": null
+    },
+    {
+     "source": "\\bCORS\\(\\s*app\\s*\\)",
+     "flags": "",
+     "exts": null
+    },
+    {
+     "source": "Access-Control-Allow-Origin[\\\"']?\\s*,\\s*(?:req|request)\\.headers?(?:\\.origin|\\[[\\\"']origin)",
+     "flags": "i",
+     "exts": null
+    }
+   ]
+  },
+  {
+   "id": "SEC006",
+   "title": "Plain HTTP URL",
+   "severity": "Low",
+   "confidence": "low",
+   "controls": [
+    8
+   ],
+   "scope": [
+    "code",
+    "config",
+    "env"
+   ],
+   "skip_comments": true,
+   "guidance": "Check whether this endpoint carries credentials or user data; require HTTPS for anything sensitive.",
+   "patterns": [
+    {
+     "source": "http://(?!localhost|127\\.|0\\.0\\.0\\.0|\\[::1\\]|www\\.w3\\.org|schemas\\.|json-schema\\.org|example\\.|host\\.docker\\.internal|purl\\.org|ns\\.adobe\\.com|xmlns\\.|java\\.sun\\.com|maven\\.apache\\.org|www\\.apache\\.org|[^/\\s\\\"']*\\.(?:local|test|example|internal|localhost)\\b)[A-Za-z0-9-]+\\.[A-Za-z0-9.-]+",
+     "flags": "",
+     "exts": null
+    }
+   ]
+  },
+  {
+   "id": "SEC007",
+   "title": "Cookie security attribute weakened",
+   "severity": "Medium",
+   "confidence": "low",
+   "controls": [
+    8
+   ],
+   "scope": [
+    "code",
+    "config",
+    "env"
+   ],
+   "skip_comments": true,
+   "guidance": "Session/auth cookies need Secure, HttpOnly, and a deliberate SameSite value.",
+   "patterns": [
+    {
+     "source": "\\b(?:secure|httponly|http_only)\\s*[:=]\\s*false\\b",
+     "flags": "i",
+     "exts": null
+    },
+    {
+     "source": "\\b(?:SESSION_COOKIE_SECURE|CSRF_COOKIE_SECURE|SESSION_COOKIE_HTTPONLY|SESSION_SECURE_COOKIE)\\s*=\\s*(?:False|false)\\b",
+     "flags": "",
+     "exts": null
+    },
+    {
+     "source": "\\bsame_?site\\s*[:=]\\s*[\\\"']?none\\b",
+     "flags": "i",
+     "exts": null
+    }
+   ]
+  },
+  {
+   "id": "SEC011",
+   "title": "Possible sensitive data in logs",
+   "severity": "Medium",
+   "confidence": "low",
+   "controls": [
+    12
+   ],
+   "scope": [
+    "code"
+   ],
+   "skip_comments": true,
+   "guidance": "Never log credentials, tokens, session IDs, or sensitive personal data; log identifiers instead.",
+   "patterns": [
+    {
+     "source": "\\b(?:log(?:ger|ging)?|console|winston|pino|logrus|zap|Log)\\.(?:info|debug|warn|warning|error|log|trace|fatal|critical|exception)\\s*\\([^)\\n]{0,200}\\b(?:password|passwd|secret|token|authorization|cookie|api_?key|card_?number|cvv|ssn)\\b",
+     "flags": "i",
+     "exts": null
+    }
+   ]
+  },
+  {
+   "id": "SEC013",
+   "title": "OS command execution",
+   "severity": "High",
+   "confidence": "medium",
+   "controls": [
+    5
+   ],
+   "scope": [
+    "code"
+   ],
+   "skip_comments": true,
+   "guidance": "Avoid shells; pass argument arrays to a fixed executable and allowlist any user-influenced values.",
+   "patterns": [
+    {
+     "source": "\\bos\\.(?:system|popen)\\s*\\(",
+     "flags": "",
+     "exts": null
+    },
+    {
+     "source": "\\bsubprocess\\.\\w+\\([^\\n]*shell\\s*=\\s*True",
+     "flags": "",
+     "exts": null
+    },
+    {
+     "source": "(?:\\bchild_process\\.|(?<![\\w$.]))exec(?:Sync)?\\s*\\(\\s*(?:`[^`]*\\$\\{|[\\\"'][^\\\"']*[\\\"']\\s*\\+|[A-Za-z_$][\\w$.]*\\s*[,)])",
+     "flags": "",
+     "exts": [
+      ".cjs",
+      ".js",
+      ".jsx",
+      ".mjs",
+      ".svelte",
+      ".ts",
+      ".tsx",
+      ".vue"
+     ]
+    },
+    {
+     "source": "\\b(?:shell_exec|passthru|proc_open|popen|system|exec)\\s*\\([^)\\n]*\\$",
+     "flags": "",
+     "exts": [
+      ".php"
+     ]
+    },
+    {
+     "source": "`[^`\\n]*#\\{|\\b(?:system|exec|spawn)\\s*\\(?[^\\n]*#\\{",
+     "flags": "",
+     "exts": [
+      ".rb"
+     ]
+    },
+    {
+     "source": "exec\\.Command(?:Context)?\\([^)]*\\\"(?:sh|bash|cmd(?:\\.exe)?)\\\"\\s*,\\s*\\\"(?:-c|/c)\\\"",
+     "flags": "",
+     "exts": [
+      ".go"
+     ]
+    },
+    {
+     "source": "Runtime\\.getRuntime\\(\\)\\.exec\\s*\\(",
+     "flags": "",
+     "exts": [
+      ".java",
+      ".kt"
+     ]
+    }
+   ]
+  },
+  {
+   "id": "SEC014",
+   "title": "Unsafe deserialization",
+   "severity": "High",
+   "confidence": "medium",
+   "controls": [
+    5
+   ],
+   "scope": [
+    "code"
+   ],
+   "skip_comments": true,
+   "guidance": "Deserialize untrusted data only with data-only formats (JSON) or safe loaders.",
+   "patterns": [
+    {
+     "source": "\\b(?:c?[Pp]ickle|dill|shelve|jsonpickle)\\.(?:loads?|decode|open)\\s*\\(",
+     "flags": "",
+     "exts": null
+    },
+    {
+     "source": "\\byaml\\.load\\s*\\((?![^)\\n]*Loader\\s*=\\s*(?:yaml\\.)?(?:C?SafeLoader|BaseLoader))",
+     "flags": "",
+     "exts": null
+    },
+    {
+     "source": "\\byaml\\.(?:unsafe_load|load_all)\\s*\\(",
+     "flags": "",
+     "exts": null
+    },
+    {
+     "source": "\\btorch\\.load\\s*\\((?![^)\\n]*weights_only\\s*=\\s*True)",
+     "flags": "",
+     "exts": null
+    },
+    {
+     "source": "\\bunserialize\\s*\\(",
+     "flags": "",
+     "exts": [
+      ".php"
+     ]
+    },
+    {
+     "source": "\\b(?:Marshal\\.load|Oj\\.load)\\b",
+     "flags": "",
+     "exts": [
+      ".rb"
+     ]
+    },
+    {
+     "source": "\\b(?:ObjectInputStream|XMLDecoder)\\b",
+     "flags": "",
+     "exts": [
+      ".java",
+      ".kt",
+      ".scala"
+     ]
+    },
+    {
+     "source": "\\b(?:BinaryFormatter|NetDataContractSerializer|LosFormatter|TypeNameHandling\\.(?:All|Auto|Objects))\\b",
+     "flags": "",
+     "exts": [
+      ".cs"
+     ]
+    },
+    {
+     "source": "\\bnode-serialize\\b|\\bserialize\\.unserialize\\s*\\(",
+     "flags": "",
+     "exts": [
+      ".cjs",
+      ".js",
+      ".jsx",
+      ".mjs",
+      ".svelte",
+      ".ts",
+      ".tsx",
+      ".vue"
+     ]
+    }
+   ]
+  },
+  {
+   "id": "SEC015",
+   "title": "Raw HTML sink (possible XSS)",
+   "severity": "Medium",
+   "confidence": "medium",
+   "controls": [
+    5
+   ],
+   "scope": [
+    "code"
+   ],
+   "skip_comments": true,
+   "guidance": "Confirm the value is sanitized with a vetted HTML sanitizer or never user-controlled; prefer escaped rendering.",
+   "patterns": [
+    {
+     "source": "dangerouslySetInnerHTML",
+     "flags": "",
+     "exts": [
+      ".cjs",
+      ".js",
+      ".jsx",
+      ".mjs",
+      ".svelte",
+      ".ts",
+      ".tsx",
+      ".vue"
+     ]
+    },
+    {
+     "source": "\\.(?:inner|outer)HTML\\s*=(?!=)",
+     "flags": "",
+     "exts": [
+      ".cjs",
+      ".htm",
+      ".html",
+      ".js",
+      ".jsx",
+      ".mjs",
+      ".svelte",
+      ".ts",
+      ".tsx",
+      ".vue"
+     ]
+    },
+    {
+     "source": "\\binsertAdjacentHTML\\s*\\(|\\bdocument\\.write(?:ln)?\\s*\\(",
+     "flags": "",
+     "exts": [
+      ".cjs",
+      ".htm",
+      ".html",
+      ".js",
+      ".jsx",
+      ".mjs",
+      ".svelte",
+      ".ts",
+      ".tsx",
+      ".vue"
+     ]
+    },
+    {
+     "source": "\\bv-html\\s*=",
+     "flags": "",
+     "exts": [
+      ".html",
+      ".vue"
+     ]
+    },
+    {
+     "source": "\\{@html\\s",
+     "flags": "",
+     "exts": [
+      ".svelte"
+     ]
+    },
+    {
+     "source": "\\|\\s*safe\\b",
+     "flags": "",
+     "exts": [
+      ".htm",
+      ".html",
+      ".j2",
+      ".jinja",
+      ".jinja2",
+      ".njk",
+      ".twig"
+     ]
+    },
+    {
+     "source": "\\bmark_safe\\s*\\(",
+     "flags": "",
+     "exts": [
+      ".py"
+     ]
+    },
+    {
+     "source": "\\{!!",
+     "flags": "",
+     "exts": [
+      ".php"
+     ]
+    },
+    {
+     "source": "\\.html_safe\\b|<%==",
+     "flags": "",
+     "exts": [
+      ".erb",
+      ".rb"
+     ]
+    },
+    {
+     "source": "<%-",
+     "flags": "",
+     "exts": [
+      ".ejs"
+     ]
+    },
+    {
+     "source": "\\{\\{\\{",
+     "flags": "",
+     "exts": [
+      ".hbs"
+     ]
+    },
+    {
+     "source": "\\bbypassSecurityTrust\\w+\\s*\\(",
+     "flags": "",
+     "exts": [
+      ".ts"
+     ]
+    }
+   ]
+  },
+  {
+   "id": "SEC016",
+   "title": "TLS certificate verification disabled",
+   "severity": "High",
+   "confidence": "high",
+   "controls": [
+    8
+   ],
+   "scope": [
+    "code",
+    "config",
+    "env"
+   ],
+   "skip_comments": true,
+   "guidance": "Keep certificate verification on; trust a private CA explicitly instead of disabling checks.",
+   "patterns": [
+    {
+     "source": "\\bverify\\s*=\\s*False\\b",
+     "flags": "",
+     "exts": null
+    },
+    {
+     "source": "\\brejectUnauthorized\\s*:\\s*false\\b",
+     "flags": "",
+     "exts": null
+    },
+    {
+     "source": "NODE_TLS_REJECT_UNAUTHORIZED[\\\"']?\\s*[:=]\\s*[\\\"']?0\\b",
+     "flags": "",
+     "exts": null
+    },
+    {
+     "source": "\\bInsecureSkipVerify\\s*:\\s*true\\b",
+     "flags": "",
+     "exts": null
+    },
+    {
+     "source": "CURLOPT_SSL_VERIFY(?:PEER|HOST)\\s*,\\s*(?:false|0)\\b",
+     "flags": "",
+     "exts": null
+    },
+    {
+     "source": "\\bssl\\._create_unverified_context\\b",
+     "flags": "",
+     "exts": null
+    },
+    {
+     "source": "\\bcheck_hostname\\s*=\\s*False\\b",
+     "flags": "",
+     "exts": null
+    },
+    {
+     "source": "\\bstrictSSL\\s*:\\s*false\\b",
+     "flags": "",
+     "exts": null
+    },
+    {
+     "source": "\\bVERIFY_NONE\\b",
+     "flags": "",
+     "exts": null
+    },
+    {
+     "source": "ServerCertificateValidationCallback\\s*=[^;\\n]*=>\\s*true",
+     "flags": "",
+     "exts": null
+    }
+   ]
+  },
+  {
+   "id": "SEC017",
+   "title": "JWT verification weakened or decoded without verification",
+   "severity": "High",
+   "confidence": "medium",
+   "controls": [
+    21,
+    2
+   ],
+   "scope": [
+    "code"
+   ],
+   "skip_comments": true,
+   "guidance": "Verify signature, algorithm allowlist, expiry, issuer, and audience before trusting any claim.",
+   "patterns": [
+    {
+     "source": "[\\\"']?verify_signature[\\\"']?\\s*:\\s*False",
+     "flags": "",
+     "exts": null
+    },
+    {
+     "source": "[\\\"']?verify_exp[\\\"']?\\s*:\\s*False",
+     "flags": "",
+     "exts": null
+    },
+    {
+     "source": "\\balgorithms?\\s*[:=]\\s*\\[?\\s*[\\\"']none[\\\"']",
+     "flags": "i",
+     "exts": null
+    },
+    {
+     "source": "\\bjwt\\.decode\\s*\\([^)\\n]*verify\\s*=\\s*False",
+     "flags": "",
+     "exts": null
+    },
+    {
+     "source": "\\bignoreExpiration\\s*:\\s*true\\b",
+     "flags": "",
+     "exts": null
+    },
+    {
+     "source": "\\bjwt\\.decode\\s*\\(|\\bdecodeJwt\\s*\\(",
+     "flags": "",
+     "exts": [
+      ".cjs",
+      ".js",
+      ".jsx",
+      ".mjs",
+      ".svelte",
+      ".ts",
+      ".tsx",
+      ".vue"
+     ]
+    },
+    {
+     "source": "\\bjwt\\.verify\\s*\\(\\s*[^,()]+,\\s*[^,()]+\\s*\\)",
+     "flags": "",
+     "exts": [
+      ".cjs",
+      ".js",
+      ".jsx",
+      ".mjs",
+      ".svelte",
+      ".ts",
+      ".tsx",
+      ".vue"
+     ]
+    },
+    {
+     "source": "\\balgorithms?\\s*[:=]\\s*\\[[^\\]\\n]*HS\\d{3}[^\\]\\n]*(?:RS|ES|PS)\\d{3}|\\balgorithms?\\s*[:=]\\s*\\[[^\\]\\n]*(?:RS|ES|PS)\\d{3}[^\\]\\n]*HS\\d{3}",
+     "flags": "i",
+     "exts": null
+    }
+   ]
+  },
+  {
+   "id": "SEC018",
+   "title": "CSRF protection disabled",
+   "severity": "Medium",
+   "confidence": "medium",
+   "controls": [
+    3
+   ],
+   "scope": [
+    "code",
+    "config",
+    "env"
+   ],
+   "skip_comments": true,
+   "guidance": "Cookie-authenticated state-changing routes need CSRF tokens or strict SameSite plus origin checks.",
+   "patterns": [
+    {
+     "source": "@csrf_exempt\\b|\\bcsrf_exempt\\s*\\(",
+     "flags": "",
+     "exts": null
+    },
+    {
+     "source": "\\bWTF_CSRF_ENABLED\\s*=\\s*False",
+     "flags": "",
+     "exts": null
+    },
+    {
+     "source": "\\bcsrf(?:Protection)?\\s*:\\s*false\\b",
+     "flags": "i",
+     "exts": null
+    },
+    {
+     "source": "skip_(?:before_action|forgery_protection)\\b[^\\n]*verify_authenticity_token",
+     "flags": "",
+     "exts": null
+    },
+    {
+     "source": "\\bprotect_from_forgery\\b[^\\n]*null_session",
+     "flags": "",
+     "exts": null
+    },
+    {
+     "source": "\\.csrf\\(\\s*\\)\\s*\\.disable\\(\\)|\\bcsrf\\s*\\([^)\\n]*disable",
+     "flags": "",
+     "exts": null
+    }
+   ]
+  },
+  {
+   "id": "SEC019",
+   "title": "Possible mass assignment from request body",
+   "severity": "Medium",
+   "confidence": "low",
+   "controls": [
+    3,
+    9,
+    1
+   ],
+   "scope": [
+    "code"
+   ],
+   "skip_comments": true,
+   "guidance": "Bind an explicit field allowlist; tenant_id, owner_id, role, and plan must come from the server-side session.",
+   "patterns": [
+    {
+     "source": "\\.(?:create|createMany|update|updateMany|updateOne|insert|insertMany|upsert|findOneAndUpdate|findByIdAndUpdate|build|set|assign)\\s*\\(\\s*(?:\\{\\s*(?:data\\s*:\\s*)?(?:\\.\\.\\.)?\\s*)?(?:req|request|ctx\\.request)\\.body\\b",
+     "flags": "",
+     "exts": [
+      ".cjs",
+      ".js",
+      ".jsx",
+      ".mjs",
+      ".svelte",
+      ".ts",
+      ".tsx",
+      ".vue"
+     ]
+    },
+    {
+     "source": "\\bdata\\s*:\\s*(?:\\.\\.\\.)?\\s*(?:req|request)\\.body\\b",
+     "flags": "",
+     "exts": [
+      ".cjs",
+      ".js",
+      ".jsx",
+      ".mjs",
+      ".svelte",
+      ".ts",
+      ".tsx",
+      ".vue"
+     ]
+    },
+    {
+     "source": "Object\\.assign\\s*\\([^,\\n]+,\\s*(?:req|request)\\.body\\b",
+     "flags": "",
+     "exts": [
+      ".cjs",
+      ".js",
+      ".jsx",
+      ".mjs",
+      ".svelte",
+      ".ts",
+      ".tsx",
+      ".vue"
+     ]
+    },
+    {
+     "source": "\\bnew\\s+[A-Z]\\w*\\s*\\(\\s*(?:req|request)\\.body\\b",
+     "flags": "",
+     "exts": [
+      ".cjs",
+      ".js",
+      ".jsx",
+      ".mjs",
+      ".svelte",
+      ".ts",
+      ".tsx",
+      ".vue"
+     ]
+    },
+    {
+     "source": "\\*\\*\\s*request\\.(?:data|json|POST|form|GET|args|get_json\\(\\))",
+     "flags": "",
+     "exts": [
+      ".py"
+     ]
+    },
+    {
+     "source": "\\b(?:fill|forceFill|create|update)\\s*\\(\\s*\\$request->(?:all|input)\\(\\)",
+     "flags": "",
+     "exts": [
+      ".php"
+     ]
+    },
+    {
+     "source": "\\bparams\\.permit!",
+     "flags": "",
+     "exts": [
+      ".rb"
+     ]
+    }
+   ]
+  },
+  {
+   "id": "SEC020",
+   "title": "Outbound request to a request-controlled URL (possible SSRF)",
+   "severity": "High",
+   "confidence": "low",
+   "controls": [
+    20,
+    5
+   ],
+   "scope": [
+    "code"
+   ],
+   "skip_comments": true,
+   "guidance": "Allowlist destination hosts/schemes, resolve and block private/metadata IPs, and disable redirects to them.",
+   "patterns": [
+    {
+     "source": "\\b(?:requests|httpx)\\.(?:get|post|put|patch|delete|head|request|stream)\\s*\\(\\s*(?:req|request|ctx\\.request|event|input)\\.(?:body|query|params|args|GET|POST|form|json|data|values)\\b",
+     "flags": "",
+     "exts": null
+    },
+    {
+     "source": "\\burlopen\\s*\\(\\s*(?:req|request|ctx\\.request|event|input)\\.(?:body|query|params|args|GET|POST|form|json|data|values)\\b",
+     "flags": "",
+     "exts": null
+    },
+    {
+     "source": "\\b(?:fetch|axios(?:\\.(?:get|post|put|request))?|got(?:\\.\\w+)?|needle|https?\\.(?:get|request))\\s*\\(\\s*(?:`\\$\\{\\s*)?(?:req|request|ctx\\.request|event|input)\\.(?:body|query|params|args|GET|POST|form|json|data|values)\\b",
+     "flags": "",
+     "exts": [
+      ".cjs",
+      ".js",
+      ".jsx",
+      ".mjs",
+      ".svelte",
+      ".ts",
+      ".tsx",
+      ".vue"
+     ]
+    },
+    {
+     "source": "\\b(?:file_get_contents|curl_init|fopen)\\s*\\(\\s*\\$_(?:GET|POST|REQUEST)",
+     "flags": "",
+     "exts": [
+      ".php"
+     ]
+    },
+    {
+     "source": "\\bhttp\\.(?:Get|Post)\\s*\\(\\s*r\\.(?:URL\\.Query|FormValue)",
+     "flags": "",
+     "exts": [
+      ".go"
+     ]
+    }
+   ]
+  },
+  {
+   "id": "SEC021",
+   "title": "Insecure randomness for a security value",
+   "severity": "Medium",
+   "confidence": "low",
+   "controls": [
+    2
+   ],
+   "scope": [
+    "code"
+   ],
+   "skip_comments": true,
+   "guidance": "Use a CSPRNG (crypto.randomBytes / secrets / random_bytes) for tokens, codes, and identifiers.",
+   "patterns": [
+    {
+     "source": "(?:token|secret|password|passwd|otp|nonce|salt|session|api_?key|reset|invite|verification|csrf)[^\\n]{0,80}Math\\.random\\s*\\(|Math\\.random\\s*\\([^\\n]{0,80}(?:token|secret|password|passwd|otp|nonce|salt|session|api_?key|reset|invite|verification|csrf)",
+     "flags": "i",
+     "exts": [
+      ".cjs",
+      ".js",
+      ".jsx",
+      ".mjs",
+      ".svelte",
+      ".ts",
+      ".tsx",
+      ".vue"
+     ]
+    },
+    {
+     "source": "(?:token|secret|password|passwd|otp|nonce|salt|session|api_?key|reset|invite|verification|csrf)[^\\n]{0,80}\\brandom\\.(?:random|randint|choice|choices|randrange|getrandbits)\\s*\\(|\\brandom\\.(?:random|randint|choice|choices|randrange|getrandbits)\\s*\\([^\\n]{0,80}(?:token|secret|password|passwd|otp|nonce|salt|session|api_?key|reset|invite|verification|csrf)",
+     "flags": "i",
+     "exts": [
+      ".py"
+     ]
+    },
+    {
+     "source": "(?:token|secret|password|passwd|otp|nonce|salt|session|api_?key|reset|invite|verification|csrf)[^\\n]{0,80}\\b(?:rand|mt_rand|uniqid)\\s*\\(",
+     "flags": "i",
+     "exts": [
+      ".php"
+     ]
+    }
+   ]
+  },
+  {
+   "id": "SEC022",
+   "title": "Permissive data access rule or RLS bypass",
+   "severity": "High",
+   "confidence": "medium",
+   "controls": [
+    1
+   ],
+   "scope": [
+    "code",
+    "config",
+    "sql"
+   ],
+   "skip_comments": true,
+   "guidance": "Policies must scope rows to the caller's tenant/user; SECURITY DEFINER functions bypass RLS and need their own checks.",
+   "patterns": [
+    {
+     "source": "\\ballow\\s+[\\w,\\s]+:\\s*if\\s+true\\b",
+     "flags": "",
+     "exts": null
+    },
+    {
+     "source": "[\\\"']\\.(?:read|write)[\\\"']\\s*:\\s*(?:true\\b|[\\\"']true[\\\"'])",
+     "flags": "",
+     "exts": null
+    },
+    {
+     "source": "\\bdisable\\s+row\\s+level\\s+security\\b",
+     "flags": "i",
+     "exts": null
+    },
+    {
+     "source": "\\b(?:using|with\\s+check)\\s*\\(\\s*true\\s*\\)",
+     "flags": "i",
+     "exts": null
+    },
+    {
+     "source": "\\bgrant\\s+all\\b[^;\\n]*\\bto\\s+(?:anon|public)\\b",
+     "flags": "i",
+     "exts": null
+    },
+    {
+     "source": "\\bsecurity\\s+definer\\b",
+     "flags": "i",
+     "exts": null
+    }
+   ]
+  },
+  {
+   "id": "SEC023",
+   "title": "Secret exposed through a public client-side env variable",
+   "severity": "High",
+   "confidence": "high",
+   "controls": [
+    15,
+    3
+   ],
+   "scope": [
+    "code",
+    "config",
+    "env"
+   ],
+   "skip_comments": true,
+   "guidance": "Public-prefixed variables are bundled into browser code. Move the secret server-side and rotate it.",
+   "patterns": [
+    {
+     "source": "\\b(?:NEXT_PUBLIC|VITE|REACT_APP|EXPO_PUBLIC|NUXT_PUBLIC|GATSBY|PUBLIC)_[A-Z0-9_]*(?:SECRET|SERVICE_ROLE|SERVICE_KEY|PRIVATE|PASSWORD|ADMIN_KEY)[A-Z0-9_]*\\b",
+     "flags": "",
+     "exts": null
+    }
+   ]
+  },
+  {
+   "id": "SEC024",
+   "title": "Weak password hashing",
+   "severity": "High",
+   "confidence": "low",
+   "controls": [
+    2
+   ],
+   "scope": [
+    "code"
+   ],
+   "skip_comments": true,
+   "guidance": "Use a password hashing function (Argon2id, scrypt, bcrypt) with per-user salts.",
+   "patterns": [
+    {
+     "source": "\\b(?:md5|sha1)\\s*\\([^)\\n]*pass",
+     "flags": "i",
+     "exts": null
+    },
+    {
+     "source": "hashlib\\.(?:md5|sha1|sha256)\\s*\\([^)\\n]*pass",
+     "flags": "i",
+     "exts": null
+    },
+    {
+     "source": "createHash\\s*\\(\\s*[\\\"'](?:md5|sha1|sha256)[\\\"']\\s*\\)[^\\n]*pass",
+     "flags": "i",
+     "exts": null
+    },
+    {
+     "source": "\\b(?:password|passwd|pwd)\\w*\\s*=\\s*[^\\n]*\\b(?:md5|sha1|sha256)\\s*\\(",
+     "flags": "i",
+     "exts": null
+    }
+   ]
+  },
+  {
+   "id": "SEC025",
+   "title": "Stack trace or raw error returned to client",
+   "severity": "Medium",
+   "confidence": "medium",
+   "controls": [
+    10
+   ],
+   "scope": [
+    "code"
+   ],
+   "skip_comments": true,
+   "guidance": "Return a generic error with a correlation ID; log details server-side.",
+   "patterns": [
+    {
+     "source": "\\b(?:res|response|reply|ctx)\\.[^\\n]{0,40}\\b(?:err|error|e|ex)\\.stack\\b",
+     "flags": "i",
+     "exts": null
+    },
+    {
+     "source": "(?:return|Response|JsonResponse|jsonify|HttpResponse)[^\\n]*traceback\\.format_exc",
+     "flags": "",
+     "exts": null
+    }
+   ]
+  },
+  {
+   "id": "SEC026",
+   "title": "Public storage bucket or object ACL",
+   "severity": "High",
+   "confidence": "medium",
+   "controls": [
+    13
+   ],
+   "scope": [
+    "code",
+    "config",
+    "sql"
+   ],
+   "skip_comments": true,
+   "guidance": "Keep tenant files private; serve them through short-lived signed URLs after an authorization check.",
+   "patterns": [
+    {
+     "source": "[\\\"']?acl[\\\"']?\\s*[:=]\\s*[\\\"']public-read(?:-write)?[\\\"']",
+     "flags": "i",
+     "exts": null
+    },
+    {
+     "source": "\\bBlockPublic(?:Acls|Policy)\\s*[:=]\\s*false\\b",
+     "flags": "",
+     "exts": null
+    },
+    {
+     "source": "\\bblock_public_(?:acls|policy)\\s*=\\s*false\\b",
+     "flags": "",
+     "exts": null
+    },
+    {
+     "source": "[\\\"']allUsers[\\\"']|\\ballUsers\\b|[\\\"']allAuthenticatedUsers[\\\"']",
+     "flags": "",
+     "exts": null
+    },
+    {
+     "source": "\\bpredefined_acl\\s*=\\s*[\\\"']publicRead",
+     "flags": "i",
+     "exts": null
+    },
+    {
+     "source": "createBucket\\s*\\([^)\\n]*public\\s*:\\s*true",
+     "flags": "i",
+     "exts": null
+    },
+    {
+     "source": "insert\\s+into\\s+storage\\.buckets[^;\\n]*\\btrue\\b",
+     "flags": "i",
+     "exts": null
+    }
+   ]
+  },
+  {
+   "id": "SEC027",
+   "title": "Redirect to a request-controlled URL (possible open redirect)",
+   "severity": "Medium",
+   "confidence": "low",
+   "controls": [
+    5
+   ],
+   "scope": [
+    "code"
+   ],
+   "skip_comments": true,
+   "guidance": "Allow only relative paths or allowlisted hosts for post-login and return URLs.",
+   "patterns": [
+    {
+     "source": "\\b(?:redirect|redirect_to|HttpResponseRedirect|RedirectResponse|Redirect)\\s*\\(\\s*(?:[^,)\\n]*,\\s*)?(?:req|request|ctx\\.request|event|input)\\.(?:body|query|params|args|GET|POST|form|json|data|values)\\b",
+     "flags": "",
+     "exts": null
+    },
+    {
+     "source": "\\bheader\\s*\\(\\s*[\\\"']Location:\\s*[\\\"']\\s*\\.\\s*\\$_(?:GET|POST|REQUEST)",
+     "flags": "",
+     "exts": [
+      ".php"
+     ]
+    }
+   ]
+  },
+  {
+   "id": "SEC028",
+   "title": "File path built from request input (possible path traversal)",
+   "severity": "High",
+   "confidence": "low",
+   "controls": [
+    13,
+    16
+   ],
+   "scope": [
+    "code"
+   ],
+   "skip_comments": true,
+   "guidance": "Resolve the path and confirm it stays inside the intended directory, or map IDs to server-generated names.",
+   "patterns": [
+    {
+     "source": "\\b(?:sendFile|readFile(?:Sync)?|createReadStream|writeFile(?:Sync)?|unlink(?:Sync)?|send_file|send_from_directory|file_get_contents|fopen|path\\.(?:join|resolve)|os\\.path\\.join|open)\\s*\\([^)\\n]*(?:req|request|ctx\\.request|event|input)\\.(?:body|query|params|args|GET|POST|form|json|data|values)\\b",
+     "flags": "",
+     "exts": null
+    }
+   ]
+  },
+  {
+   "id": "SEC029",
+   "title": "Query object taken directly from request (possible NoSQL injection)",
+   "severity": "High",
+   "confidence": "low",
+   "controls": [
+    6,
+    5
+   ],
+   "scope": [
+    "code"
+   ],
+   "skip_comments": true,
+   "guidance": "Validate types (reject objects where strings are expected) and build query filters from explicit fields.",
+   "patterns": [
+    {
+     "source": "\\.(?:find|findOne|where|updateOne|updateMany|deleteOne|deleteMany|countDocuments)\\s*\\(\\s*(?:req|request)\\.(?:body|query)\\b",
+     "flags": "",
+     "exts": [
+      ".cjs",
+      ".js",
+      ".jsx",
+      ".mjs",
+      ".svelte",
+      ".ts",
+      ".tsx",
+      ".vue"
+     ]
+    },
+    {
+     "source": "[\\\"']\\$where[\\\"']",
+     "flags": "",
+     "exts": null
+    }
+   ]
+  },
+  {
+   "id": "SEC035",
+   "title": "Untrusted input interpolated into an LLM system prompt",
+   "severity": "Medium",
+   "confidence": "low",
+   "controls": [
+    22
+   ],
+   "scope": [
+    "code"
+   ],
+   "skip_comments": true,
+   "guidance": "Keep untrusted text out of the system prompt; pass it as delimited user content and treat model output as untrusted.",
+   "patterns": [
+    {
+     "source": "\\b(?:system_?prompt|systemPrompt|system_message|instructions)\\s*[:=]\\s*(?:f[\\\"']|`)[^\\n]*(?:\\{|\\$\\{)\\s*(?:req|request|user|input|body|query|params|doc|document|page|email|content)",
+     "flags": "i",
+     "exts": null
+    },
+    {
+     "source": "role\\s*[:=]\\s*[\\\"']system[\\\"'][^\\n]*content\\s*[:=]\\s*(?:f[\\\"']|`)[^\\n]*(?:\\{|\\$\\{)\\s*(?:req|request|user|input|body|query|params)",
+     "flags": "i",
+     "exts": null
+    }
+   ]
+  },
+  {
+   "id": "SEC036",
+   "title": "LLM output passed to an execution or query sink",
+   "severity": "High",
+   "confidence": "low",
+   "controls": [
+    22,
+    5
+   ],
+   "scope": [
+    "code"
+   ],
+   "skip_comments": true,
+   "guidance": "Never execute, query, or fetch model output directly; validate it against a strict schema and an allowlist of actions.",
+   "patterns": [
+    {
+     "source": "\\b(?:eval|exec|execSync|query|execute|raw|system|subprocess\\.\\w+)\\s*\\(\\s*(?:\\w+\\.)?(?:completion|response|result|output|answer|message|llm\\w*|ai\\w*)(?:\\.(?:content|text|output_text|choices|message))+",
+     "flags": "i",
+     "exts": null
+    },
+    {
+     "source": "\\b(?:fetch|requests\\.get|axios\\.get)\\s*\\(\\s*(?:\\w+\\.)?(?:completion|response|output|llm\\w*)(?:\\.(?:content|text|output_text))+",
+     "flags": "i",
+     "exts": null
+    }
+   ]
+  },
+  {
+   "id": "SEC037",
+   "title": "Long-lived token or session lifetime",
+   "severity": "Medium",
+   "confidence": "low",
+   "controls": [
+    21
+   ],
+   "scope": [
+    "code",
+    "config",
+    "env"
+   ],
+   "skip_comments": true,
+   "guidance": "Keep access tokens short (minutes), rotate refresh tokens on use, and revoke sessions server-side on password or role change.",
+   "patterns": [
+    {
+     "source": "\\bexpiresIn\\s*:\\s*[\\\"']?(?:\\d{3,}d|\\d+y|[3-9]\\dd|\\d{7,}[\\\"']?\\s*[,}])",
+     "flags": "i",
+     "exts": null
+    },
+    {
+     "source": "\\b(?:ACCESS_TOKEN_EXPIRE\\w*|JWT_EXPIRATION\\w*|SESSION_COOKIE_AGE)\\s*=\\s*(?:timedelta\\(\\s*days\\s*=\\s*(?:[3-9]\\d|\\d{3,})|\\d{7,})",
+     "flags": "i",
+     "exts": null
+    },
+    {
+     "source": "\\bmaxAge\\s*:\\s*(?:\\d{10,}|[3-9]\\d\\s*\\*\\s*24\\s*\\*\\s*60\\s*\\*\\s*60(?:\\s*\\*\\s*1000)?|\\d{3,}\\s*\\*\\s*24\\s*\\*\\s*60\\s*\\*\\s*60)",
+     "flags": "i",
+     "exts": null
+    }
+   ]
+  }
+ ],
+ "secret_formats": [
+  {
+   "source": "-----BEGIN (?:RSA |EC |DSA |OPENSSH |PGP |ENCRYPTED )?PRIVATE KEY(?: BLOCK)?-----",
+   "flags": "",
+   "title": "Private key block",
+   "severity": "Critical",
+   "groups": []
+  },
+  {
+   "source": "\\b(?:AKIA|ASIA)[0-9A-Z]{16}\\b",
+   "flags": "",
+   "title": "AWS access key ID",
+   "severity": "Critical",
+   "groups": []
+  },
+  {
+   "source": "\\b(?:sk|rk)_live_[0-9A-Za-z]{16,}\\b",
+   "flags": "",
+   "title": "Stripe live secret key",
+   "severity": "Critical",
+   "groups": []
+  },
+  {
+   "source": "\\b(?:gh[pousr]_[A-Za-z0-9]{36,}|github_pat_[A-Za-z0-9_]{40,})\\b",
+   "flags": "",
+   "title": "GitHub token",
+   "severity": "High",
+   "groups": []
+  },
+  {
+   "source": "\\bxox[abposr]-[A-Za-z0-9-]{10,}",
+   "flags": "",
+   "title": "Slack token",
+   "severity": "High",
+   "groups": []
+  },
+  {
+   "source": "\\bsk-(?:ant-|proj-)?[A-Za-z0-9_-]{24,}",
+   "flags": "",
+   "title": "LLM provider API key",
+   "severity": "High",
+   "groups": []
+  },
+  {
+   "source": "\\bSG\\.[A-Za-z0-9_-]{16,}\\.[A-Za-z0-9_-]{16,}",
+   "flags": "",
+   "title": "SendGrid API key",
+   "severity": "High",
+   "groups": []
+  },
+  {
+   "source": "\\bAIza[0-9A-Za-z_-]{35}\\b",
+   "flags": "",
+   "title": "Google API key",
+   "severity": "Medium",
+   "groups": []
+  },
+  {
+   "source": "\\b(?:sk|rk)_test_[0-9A-Za-z]{16,}\\b",
+   "flags": "",
+   "title": "Stripe test secret key",
+   "severity": "Low",
+   "groups": []
+  },
+  {
+   "source": "\\beyJ[A-Za-z0-9_-]{8,}\\.(?<payload>eyJ[A-Za-z0-9_-]{8,})\\.[A-Za-z0-9_-]{8,}",
+   "flags": "",
+   "title": "JSON Web Token",
+   "severity": "Medium",
+   "groups": [
+    "payload"
+   ]
+  },
+  {
+   "source": "\\b[a-zA-Z][a-zA-Z0-9+.-]{1,20}://[^\\s:/@'\\\"`]+:(?<v>[^\\s@/'\\\"`]{3,})@(?<host>[^\\s/:'\\\"`]+)",
+   "flags": "",
+   "title": "Credentials in connection URL",
+   "severity": "High",
+   "groups": [
+    "host",
+    "v"
+   ]
+  }
+ ],
+ "regex": {
+  "quoted_cred_re": {
+   "source": "(?<k>\\b[A-Za-z0-9_.-]*(?:api[_-]?key|apikey|client[_-]?secret|access[_-]?token|auth[_-]?token|refresh[_-]?token|password|passwd|pwd|secret[_-]?key|private[_-]?key|secret|signing[_-]?key|encryption[_-]?key))[\\\"']?\\s*(?:[:=]|=>|:=)\\s*(?<q>[\\\"'`])(?<v>[^\\\"'`\\s$]{8,})\\k<q>",
+   "flags": "i"
+  },
+  "env_cred_re": {
+   "source": "^\\s*(?:export\\s+)?(?<k>[A-Z0-9_]*(?:SECRET|TOKEN|PASSWORD|PASSWD|PWD|API_?KEY|PRIVATE_KEY|ACCESS_KEY|CREDENTIALS?|DSN)[A-Z0-9_]*)\\s*=\\s*[\\\"']?(?<v>[^\\s\\\"'#]{8,})",
+   "flags": "i"
+  },
+  "bearer_re": {
+   "source": "\\bbearer\\s+[A-Za-z0-9._~+/-]{12,}=*",
+   "flags": "i"
+  },
+  "placeholder_re": {
+   "source": "^(?:x+|\\*+|\\.+|-+|0+|changeme|change_?me|changeit|password\\d*|secret|none|null|undefined|todo|tbd|redacted|(?:example|sample|dummy|placeholder|your|replace|test|fake|mock|insert|enter|my)[\\w.-]*|<[^>]*>|\\{\\{.*\\}\\}|\\$\\{.*\\}|%\\(.*\\)s|.*xxxx.*)$",
+   "flags": "i"
+  },
+  "local_host_re": {
+   "source": "^(?:localhost|127(?:\\.\\d+){3}|0\\.0\\.0\\.0|db|postgres|mysql|redis|mongo|database|host\\.docker\\.internal)$",
+   "flags": "i"
+  },
+  "suppress_re": {
+   "source": "security-audit:\\s*ignore(?:\\[(?<ids>[^\\]]*)\\])?(?:\\s*(?:--|:)\\s*(?<reason>.*))?",
+   "flags": ""
+  },
+  "test_path_re": {
+   "source": "(?:^|/)(?:tests?|__tests__|spec|specs|e2e|cypress|playwright|fixtures?|__mocks__|testdata|mocks?)/|(?:^|/)(?:test_[^/]*|[^/]*_test\\.\\w+|[^/]*\\.(?:test|spec)\\.\\w+|conftest\\.py)$",
+   "flags": "i"
+  },
+  "example_env_re": {
+   "source": "\\.(?:example|sample|template|dist|defaults)$",
+   "flags": "i"
+  },
+  "webhook_route_re": {
+   "source": "(?:\\.(?:post|put|all|route)\\s*\\(|@\\w+\\.(?:post|route|api_route)|\\b(?:re_)?path\\s*\\(|Route::(?:post|any|match)|\\bpost\\s+[\\\"']|@PostMapping|@RequestMapping|HandleFunc)[^\\n]*webhook",
+   "flags": "i"
+  },
+  "webhook_verify_re": {
+   "source": "constructEvent|verifyHeader|validateRequest|verify_?signature|verifySignature|\\bhmac\\b|createHmac|timingSafeEqual|compare_digest|hash_equals|secure_compare|\\bsvix\\b|new\\s+Webhook\\s*\\(|webhooks?\\.verify|x-hub-signature|stripe-signature|x-slack-signature|x-signature",
+   "flags": "i"
+  },
+  "webhook_idempotency_re": {
+   "source": "idempoten|event\\.id\\b|event_id|eventId|already[_ ]processed|processed_events|dedup|on\\s+conflict",
+   "flags": "i"
+  },
+  "create_table_re": {
+   "source": "\\bcreate\\s+table\\s+(?:if\\s+not\\s+exists\\s+)?(?<name>(?:\\\"?\\w+\\\"?\\.)?\\\"?\\w+\\\"?)",
+   "flags": "i"
+  },
+  "enable_rls_re": {
+   "source": "\\balter\\s+table\\s+(?:if\\s+exists\\s+)?(?:only\\s+)?(?<name>(?:\\\"?\\w+\\\"?\\.)?\\\"?\\w+\\\"?)\\s+enable\\s+row\\s+level\\s+security",
+   "flags": "i"
+  },
+  "drop_table_re": {
+   "source": "\\bdrop\\s+table\\s+(?:if\\s+exists\\s+)?(?<name>(?:\\\"?\\w+\\\"?\\.)?\\\"?\\w+\\\"?)",
+   "flags": "i"
+  },
+  "policy_re": {
+   "source": "\\bcreate\\s+policy\\s+(?:\\\"[^\\\"]+\\\"|\\w+)\\s+on\\s+(?<name>(?:\\\"?\\w+\\\"?\\.)?\\\"?\\w+\\\"?)",
+   "flags": "i"
+  },
+  "drizzle_table_re": {
+   "source": "(?:export\\s+)?const\\s+(?<var>\\w+)\\s*=\\s*pgTable(?<rls>\\.withRLS)?\\s*\\(\\s*[\\\"'](?<name>\\w+)[\\\"']",
+   "flags": ""
+  },
+  "drizzle_rls_re": {
+   "source": "\\.enableRLS\\s*\\(|\\bpgPolicy\\s*\\(",
+   "flags": ""
+  },
+  "prisma_model_re": {
+   "source": "^\\s*model\\s+(?<name>\\w+)\\s*\\{",
+   "flags": ""
+  },
+  "tenant_field_re": {
+   "source": "^\\s*(?:tenant|org|organization|workspace|account|team|company)_?[iI]d\\b",
+   "flags": "i"
+  },
+  "prisma_global_models": {
+   "source": "^(?:user|users|account|session|verificationtoken|authenticator|tenant|org|organization|workspace|team|company|plan|price|product|feature|migration|_\\w+)$",
+   "flags": "i"
+  }
+ },
+ "control_signals": {
+  "1": {
+   "source": "\\b(?:tenant_?id|org(?:anization)?_?id|workspace_?id|team_?id)\\b|row\\s+level\\s+security|auth\\.uid\\(\\)|current_setting\\(",
+   "flags": "i"
+  },
+  "2": {
+   "source": "\\b(?:authenticate|requireAuth|isAuthenticated|login_required|getServerSession|currentUser|verifyToken|get_current_user|authenticate_user!|clerkMiddleware|withAuth|authMiddleware|auth\\.getUser)\\b|passport\\.authenticate|middleware\\(\\s*[\\\"']auth",
+   "flags": "i"
+  },
+  "3": {
+   "source": "\\b(?:authorize|permission_required|has_?permission|checkPermission|can\\?|Gate::|@PreAuthorize|requireRole|hasRole|policy|ability)\\b",
+   "flags": "i"
+  },
+  "4": {
+   "source": "rate.?limit|throttl|slowapi|rack.?attack|@upstash/ratelimit|\\blimiter\\b",
+   "flags": "i"
+  },
+  "5": {
+   "source": "\\b(?:zod|z\\.object|joi|yup|pydantic|BaseModel|class-validator|marshmallow|ajv|valibot|FormRequest|sanitize|DOMPurify|bleach)\\b",
+   "flags": "i"
+  },
+  "6": {
+   "source": "\\b(?:prisma|drizzle|sequelize|typeorm|knex|sqlalchemy|psycopg2?|mysql2|pg\\.Pool|createPool|\\$queryRaw|ActiveRecord|Eloquent|mongoose)\\b",
+   "flags": "i"
+  },
+  "7": {
+   "source": "\\bcors\\b|Access-Control-Allow",
+   "flags": "i"
+  },
+  "8": {
+   "source": "\\bsecure\\s*:\\s*true|SESSION_COOKIE_SECURE|SECURE_SSL_REDIRECT|force_ssl|trust\\s*proxy|ProxyFix|SECURE_PROXY_SSL_HEADER|Strict-Transport-Security|\\bhsts\\b",
+   "flags": "i"
+  },
+  "9": {
+   "source": "(?:findUnique|findFirst|findById|findOne|findByPk|get_object_or_404|objects\\.get|find_by|findOrFail|\\.eq\\(\\s*[\\\"']id[\\\"'])\\s*\\(?[^\\n]*(?:req\\.params|params\\[|params\\.|request\\.|\\$request|kwargs|query\\.)",
+   "flags": "i"
+  },
+  "10": {
+   "source": "\\b(?:errorHandler|exception_handler|handler500|@app\\.errorhandler|rescue_from|ErrorBoundary|onError|NODE_ENV)\\b|app\\.use\\(\\s*\\(?\\s*err",
+   "flags": "i"
+  },
+  "11": {
+   "source": "recaptcha|hcaptcha|turnstile|captcha|friendlycaptcha",
+   "flags": "i"
+  },
+  "12": {
+   "source": "audit.?log|audit.?trail|activity.?log|security.?event",
+   "flags": "i"
+  },
+  "13": {
+   "source": "\\b(?:S3Client|putObject|getObject|getSignedUrl|presign\\w*|createSignedUrl|storage\\.from|bucket|GetSignedURL)\\b",
+   "flags": "i"
+  },
+  "14": {
+   "source": "\\b(?:is_?admin|is_?superuser|is_staff|superuser|admin(?:Only|Required|Guard)|requireAdmin)\\b|role\\s*={2,3}\\s*[\\\"']admin|[\\\"']/admin",
+   "flags": "i"
+  },
+  "16": {
+   "source": "\\b(?:multer|formidable|busboy|UploadFile|FileField|ImageField|move_uploaded_file|request\\.files|upload\\.(?:single|array|fields)|multipart/form-data)\\b",
+   "flags": "i"
+  },
+  "18": {
+   "source": "\\bhelmet\\b|Content-Security-Policy|X-Frame-Options|X-Content-Type-Options|Referrer-Policy|Permissions-Policy|SecurityMiddleware|secure_headers",
+   "flags": "i"
+  },
+  "19": {
+   "source": "webhook",
+   "flags": "i"
+  },
+  "20": {
+   "source": "\\b(?:fetch|axios(?:\\.\\w+)?|got|requests\\.(?:get|post|request)|httpx\\.\\w+|urlopen|http\\.Get|HttpClient|curl_init)\\s*\\(\\s*(?![\\\"'`]https?://)[\\w$`]",
+   "flags": "i"
+  },
+  "21": {
+   "source": "\\b(?:expiresIn|maxAge|refresh_?token|ACCESS_TOKEN_EXPIRE\\w*|SESSION_COOKIE_AGE|revoke\\w*|rotate\\w*Token|jwt\\.(?:sign|verify)|jwtVerify|SignJWT)\\b",
+   "flags": "i"
+  },
+  "22": {
+   "source": "\\b(?:openai|anthropic|@ai-sdk|langchain|llamaindex|generateText|streamText|chat\\.completions|messages\\.create|responses\\.create|ChatOpenAI|ChatAnthropic|ollama)\\b",
+   "flags": "i"
+  }
+ },
+ "security_packages": {
+  "helmet": {
+   "control": 18,
+   "role": "security headers"
+  },
+  "express-rate-limit": {
+   "control": 4,
+   "role": "rate limiting"
+  },
+  "@upstash/ratelimit": {
+   "control": 4,
+   "role": "rate limiting"
+  },
+  "rate-limiter-flexible": {
+   "control": 4,
+   "role": "rate limiting"
+  },
+  "slowapi": {
+   "control": 4,
+   "role": "rate limiting"
+  },
+  "django-ratelimit": {
+   "control": 4,
+   "role": "rate limiting"
+  },
+  "rack-attack": {
+   "control": 4,
+   "role": "rate limiting"
+  },
+  "cors": {
+   "control": 7,
+   "role": "CORS"
+  },
+  "django-cors-headers": {
+   "control": 7,
+   "role": "CORS"
+  },
+  "zod": {
+   "control": 5,
+   "role": "validation"
+  },
+  "joi": {
+   "control": 5,
+   "role": "validation"
+  },
+  "yup": {
+   "control": 5,
+   "role": "validation"
+  },
+  "class-validator": {
+   "control": 5,
+   "role": "validation"
+  },
+  "pydantic": {
+   "control": 5,
+   "role": "validation"
+  },
+  "dompurify": {
+   "control": 5,
+   "role": "HTML sanitizing"
+  },
+  "isomorphic-dompurify": {
+   "control": 5,
+   "role": "HTML sanitizing"
+  },
+  "bleach": {
+   "control": 5,
+   "role": "HTML sanitizing"
+  },
+  "next-auth": {
+   "control": 2,
+   "role": "authentication"
+  },
+  "@auth/core": {
+   "control": 2,
+   "role": "authentication"
+  },
+  "@clerk/nextjs": {
+   "control": 2,
+   "role": "authentication"
+  },
+  "passport": {
+   "control": 2,
+   "role": "authentication"
+  },
+  "lucia": {
+   "control": 2,
+   "role": "authentication"
+  },
+  "better-auth": {
+   "control": 2,
+   "role": "authentication"
+  },
+  "@supabase/supabase-js": {
+   "control": 1,
+   "role": "Supabase (RLS-based tenancy)"
+  },
+  "@supabase/ssr": {
+   "control": 1,
+   "role": "Supabase (RLS-based tenancy)"
+  },
+  "firebase": {
+   "control": 1,
+   "role": "Firebase (rules-based access)"
+  },
+  "firebase-admin": {
+   "control": 14,
+   "role": "Firebase admin SDK (bypasses rules)"
+  },
+  "prisma": {
+   "control": 6,
+   "role": "ORM"
+  },
+  "@prisma/client": {
+   "control": 6,
+   "role": "ORM"
+  },
+  "drizzle-orm": {
+   "control": 6,
+   "role": "ORM"
+  },
+  "sequelize": {
+   "control": 6,
+   "role": "ORM"
+  },
+  "typeorm": {
+   "control": 6,
+   "role": "ORM"
+  },
+  "mongoose": {
+   "control": 6,
+   "role": "ODM"
+  },
+  "sqlalchemy": {
+   "control": 6,
+   "role": "ORM"
+  },
+  "django": {
+   "control": 2,
+   "role": "Django"
+  },
+  "djangorestframework": {
+   "control": 2,
+   "role": "DRF"
+  },
+  "flask": {
+   "control": 2,
+   "role": "Flask"
+  },
+  "fastapi": {
+   "control": 2,
+   "role": "FastAPI"
+  },
+  "express": {
+   "control": 2,
+   "role": "Express"
+  },
+  "next": {
+   "control": 2,
+   "role": "Next.js"
+  },
+  "@nestjs/core": {
+   "control": 2,
+   "role": "NestJS"
+  },
+  "fastify": {
+   "control": 2,
+   "role": "Fastify"
+  },
+  "hono": {
+   "control": 2,
+   "role": "Hono"
+  },
+  "laravel/framework": {
+   "control": 2,
+   "role": "Laravel"
+  },
+  "rails": {
+   "control": 2,
+   "role": "Rails"
+  },
+  "multer": {
+   "control": 16,
+   "role": "uploads"
+  },
+  "formidable": {
+   "control": 16,
+   "role": "uploads"
+  },
+  "busboy": {
+   "control": 16,
+   "role": "uploads"
+  },
+  "stripe": {
+   "control": 19,
+   "role": "Stripe webhooks"
+  },
+  "openai": {
+   "control": 22,
+   "role": "LLM SDK"
+  },
+  "@anthropic-ai/sdk": {
+   "control": 22,
+   "role": "LLM SDK"
+  },
+  "anthropic": {
+   "control": 22,
+   "role": "LLM SDK"
+  },
+  "ai": {
+   "control": 22,
+   "role": "Vercel AI SDK"
+  },
+  "langchain": {
+   "control": 22,
+   "role": "LLM framework"
+  },
+  "ssrf-req-filter": {
+   "control": 20,
+   "role": "SSRF filter"
+  },
+  "request-filtering-agent": {
+   "control": 20,
+   "role": "SSRF filter"
+  },
+  "svix": {
+   "control": 19,
+   "role": "webhook verification"
+  },
+  "@aws-sdk/client-s3": {
+   "control": 13,
+   "role": "S3 storage"
+  },
+  "boto3": {
+   "control": 13,
+   "role": "AWS SDK"
+  },
+  "jsonwebtoken": {
+   "control": 2,
+   "role": "JWT"
+  },
+  "jose": {
+   "control": 2,
+   "role": "JWT"
+  },
+  "pyjwt": {
+   "control": 2,
+   "role": "JWT"
+  },
+  "react-google-recaptcha": {
+   "control": 11,
+   "role": "CAPTCHA"
+  },
+  "@hcaptcha/react-hcaptcha": {
+   "control": 11,
+   "role": "CAPTCHA"
+  },
+  "@marsidev/react-turnstile": {
+   "control": 11,
+   "role": "CAPTCHA"
+  },
+  "csurf": {
+   "control": 3,
+   "role": "CSRF"
+  },
+  "django-csp": {
+   "control": 18,
+   "role": "CSP"
+  }
+ },
+ "rule_titles": {
+  "SEC002": "Dynamic code evaluation",
+  "SEC003": "SQL built with string interpolation or concatenation",
+  "SEC004": "Debug mode or verbose errors may be enabled",
+  "SEC005": "Permissive CORS policy",
+  "SEC006": "Plain HTTP URL",
+  "SEC007": "Cookie security attribute weakened",
+  "SEC011": "Possible sensitive data in logs",
+  "SEC013": "OS command execution",
+  "SEC014": "Unsafe deserialization",
+  "SEC015": "Raw HTML sink (possible XSS)",
+  "SEC016": "TLS certificate verification disabled",
+  "SEC017": "JWT verification weakened or decoded without verification",
+  "SEC018": "CSRF protection disabled",
+  "SEC019": "Possible mass assignment from request body",
+  "SEC020": "Outbound request to a request-controlled URL (possible SSRF)",
+  "SEC021": "Insecure randomness for a security value",
+  "SEC022": "Permissive data access rule or RLS bypass",
+  "SEC023": "Secret exposed through a public client-side env variable",
+  "SEC024": "Weak password hashing",
+  "SEC025": "Stack trace or raw error returned to client",
+  "SEC026": "Public storage bucket or object ACL",
+  "SEC027": "Redirect to a request-controlled URL (possible open redirect)",
+  "SEC028": "File path built from request input (possible path traversal)",
+  "SEC029": "Query object taken directly from request (possible NoSQL injection)",
+  "SEC035": "Untrusted input interpolated into an LLM system prompt",
+  "SEC036": "LLM output passed to an execution or query sink",
+  "SEC037": "Long-lived token or session lifetime",
+  "SEC001": "Possible hardcoded credential",
+  "SEC012": "Known-format secret",
+  "SEC030": "Table without row-level security",
+  "SEC031": "Webhook handler without visible signature verification",
+  "SEC032": "Environment file not covered by root .gitignore",
+  "SEC033": "Dependency manifest without a lockfile",
+  "SEC034": "Webhook handler without visible idempotency handling",
+  "SEC038": "RLS enabled but no policies defined",
+  "SEC039": "Prisma model without a tenant key in a multi-tenant schema"
+ },
+ "secret_guidance": {
+  "SEC001": "Confirm whether the value is real. If so, rotate it, remove it from history, and load it from a secret store.",
+  "SEC012": "Treat as exposed: rotate first, then purge from git history and move to a secret store."
+ }
+}
