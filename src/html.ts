@@ -1,6 +1,7 @@
 /**
  * Self-contained HTML report: no external fonts, scripts, or images, so it opens offline and
- * never makes a network request. Designed for screen and for print (A4).
+ * never makes a network request. Laid out like a security assessment document (numbered sections,
+ * restrained type, one accent colour) for screen and for print (A4).
  */
 import type { Finding } from "./engine.js";
 import type { Result } from "./report.js";
@@ -9,241 +10,254 @@ import { buildView, controlLabel, formatDate, SEVERITY_ORDER, type CoverageRow, 
 
 const esc = (s: unknown) => String(s).replace(/[&<>"']/g, (ch) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[ch]!);
 const SEV_KEY: Record<string, string> = { Critical: "crit", High: "high", Medium: "med", Low: "low", Informational: "info" };
-const SEV_LABEL: Record<string, string> = { Critical: "Critical", High: "High", Medium: "Medium", Low: "Low", Informational: "Info" };
+const SEV_LABEL: Record<string, string> = { Critical: "Critical", High: "High", Medium: "Medium", Low: "Low", Informational: "Informational" };
+const RATING: Record<View["posture"]["level"], string> = { critical: "Critical risk", high: "Elevated risk", medium: "Moderate risk", low: "Low risk" };
 
-const LOGO = `<svg class="logo" viewBox="0 0 64 64" aria-hidden="true"><defs><linearGradient id="lg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#22d3ee"/><stop offset="1" stop-color="#8b5cf6"/></linearGradient></defs>
-<path d="M32 4 C24 7 16 7 9 6 V30 C9 45 19 54 32 60 C45 54 55 45 55 30 V6 C48 7 40 7 32 4Z" fill="#0d1628" stroke="url(#lg)" stroke-width="4"/>
-<rect x="19" y="18" width="11" height="11" rx="2.5" fill="#2b5a80"/><rect x="34" y="18" width="11" height="11" rx="2.5" fill="#2b5a80"/>
-<rect x="19" y="33" width="11" height="11" rx="2.5" fill="#2b5a80"/><rect x="34" y="33" width="11" height="11" rx="2.5" fill="#fbb024"/>
-<rect x="12" y="37.5" width="40" height="2" rx="1" fill="#7decff"/></svg>`;
+/** Finding numbers for the report (F-01, F-02 …), in the order shown. */
+const ref = (i: number, total: number) => `F-${String(i + 1).padStart(Math.max(2, String(total).length), "0")}`;
 
-function findingRow(f: Finding, withEvidence: boolean): string {
-  const k = SEV_KEY[f.severity];
-  const ctx = f.context === "source" ? "" : ` <span class="ctx">${esc(f.context)}</span>`;
-  const search = esc(`${f.id} ${f.title} ${f.file} ${controlLabel(f.controls[0])}`.toLowerCase());
-  const detail = withEvidence
-    ? `<details><summary>Evidence &amp; fix</summary><pre>${esc(f.evidence)}</pre><p class="fix"><b>Fix.</b> ${esc(f.guidance)}</p>
-       <p class="meta">Confidence: ${esc(f.confidence)} · Controls: ${f.controls.map((c) => esc(controlLabel(c))).join(", ")}</p>${stdTags(f)}</details>`
-    : "";
-  return `<tr class="f" data-sev="${k}" data-q="${search}"><td><span class="pill ${k}">${SEV_LABEL[f.severity]}</span></td>
-<td class="mono dim">${esc(f.id)}</td><td class="dim">${esc(controlLabel(f.controls[0]))}</td>
-<td class="mono loc">${esc(f.file)}:${f.line}${ctx}</td><td><div class="issue">${esc(f.title)}</div>${detail}</td></tr>`;
-}
+const sev = (s: string) => `<span class="sev ${SEV_KEY[s]}"><i></i>${SEV_LABEL[s]}</span>`;
 
 function stdTags(f: Finding): string {
   const st = f.standards;
   if (!st) return "";
   const tags = [st.owasp ? `OWASP ${st.owasp}` : "", ...st.owasp_api.map((a) => `OWASP ${a}`), ...st.owasp_llm.map((l) => `OWASP ${l}`), ...st.cwe].filter(Boolean);
-  return tags.length ? `<p class="tags">${tags.map((t) => `<span class="tag">${esc(t)}</span>`).join("")}</p>` : "";
+  return tags.length ? tags.map(esc).join(" · ") : "";
 }
 
-function vibeHtml(result: Result): string {
+function findingRow(f: Finding, i: number, total: number, withEvidence: boolean): string {
+  const k = SEV_KEY[f.severity];
+  const ctx = f.context === "source" ? "" : ` <span class="muted">(${esc(f.context)})</span>`;
+  const search = esc(`${f.id} ${f.title} ${f.file} ${controlLabel(f.controls[0])}`.toLowerCase());
+  const tags = stdTags(f);
+  const detail = withEvidence
+    ? `<details><summary>Evidence and remediation</summary>
+<dl class="detail"><dt>Evidence</dt><dd><pre>${esc(f.evidence)}</pre></dd>
+<dt>Remediation</dt><dd>${esc(f.guidance)}</dd>
+<dt>Classification</dt><dd>${esc(controlLabel(f.controls[0]))}${f.controls.length > 1 ? ` (also ${f.controls.slice(1).map((c) => esc(controlLabel(c))).join(", ")})` : ""} · confidence ${esc(f.confidence)}${tags ? ` · ${tags}` : ""}</dd></dl></details>`
+    : "";
+  return `<tr class="f" data-sev="${k}" data-q="${search}"><td class="ref">${ref(i, total)}</td><td>${sev(f.severity)}</td>
+<td><div class="title">${esc(f.title)}</div><div class="loc">${esc(f.file)}:${f.line}${ctx}</div>${detail}</td>
+<td class="rule">${esc(f.id)}</td></tr>`;
+}
+
+function findingsTable(findings: Finding[], withEvidence: boolean, id: string): string {
+  if (!findings.length) return `<p class="note">No leads in source code. This is not evidence that the application is secure; the controls listed under Control coverage still need verification.</p>`;
+  return `<table class="findings" id="${id}"><thead><tr><th>Ref.</th><th>Severity</th><th>Finding and location</th><th>Rule</th></tr></thead>
+<tbody>${findings.map((f, i) => findingRow(f, i, findings.length, withEvidence)).join("\n")}</tbody></table>`;
+}
+
+function coverageRow(r: CoverageRow, status: "leads" | "none" | "unverified"): string {
+  const label = { leads: `<span class="status warn">Leads to verify</span>`, none: `<span class="status">No signals found</span>`, unverified: `<span class="status">Not verified</span>` }[status];
+  const sig = r.signals ? `${r.signals.source_count} / ${r.signals.test_count}` : "–";
+  const look = r.id === 17 ? "Independent review (Claude Code plugin)" : r.id === 15 ? "Dependency and secret scanning tools"
+    : r.signals?.locations.length ? r.signals.locations.slice(0, 3).map((l) => `<code>${esc(l)}</code>`).join(" ") : `<span class="muted">–</span>`;
+  return `<tr><td class="ref">C${r.id}</td><td>${esc(r.name)}</td><td>${label}</td><td class="num">${r.leads || "–"}</td><td class="num muted">${sig}</td><td class="look">${look}</td></tr>`;
+}
+
+function vibeHtml(result: Result, n: number): string {
   const found = result.vibe_review.filter((v) => v.status === "found").length;
-  return `<section><h2>Vibe-code review <small>${found} of ${result.vibe_review.length} common AI-codegen mistakes found</small></h2>
-<p class="empty" style="margin:0 0 12px">Mistakes that AI-generated apps make most often. "Not found" means no lead matched; it is not a pass.</p>
-<div class="vibe">${result.vibe_review.map((v) => `<div class="vcheck ${v.status === "found" ? "found" : ""}"><span class="vmark">${v.status === "found" ? "▲" : "○"}</span>
-<span class="vtitle">${esc(v.title)}<small>${esc(v.rules.join(" · "))}</small></span><b>${v.status === "found" ? v.leads : "—"}</b></div>`).join("")}</div></section>`;
+  return `<section><h2><span>${n}</span>Vibe-code review</h2>
+<p class="lede">Patterns common in AI-generated code. ${found} of ${result.vibe_review.length} were matched. "Not matched" means no lead was found; it is not a pass.</p>
+<table><thead><tr><th>Pattern</th><th>Rules</th><th>Result</th><th class="num">Leads</th></tr></thead><tbody>
+${result.vibe_review.map((v) => `<tr><td>${esc(v.title)}</td><td class="muted mono small">${esc(v.rules.join(", "))}</td>
+<td>${v.status === "found" ? `<span class="status warn">Matched</span>` : `<span class="status">Not matched</span>`}</td><td class="num">${v.status === "found" ? v.leads : "–"}</td></tr>`).join("")}
+</tbody></table></section>`;
 }
 
-function standardsHtml(result: Result): string {
+function standardsHtml(result: Result, n: number): string {
   const s = result.standards;
   const table = (title: string, rows: typeof s.owasp_top10_2021) => `<h3>${title}</h3><table><thead><tr><th>ID</th><th>Category</th><th class="num">Leads</th><th>Rules</th></tr></thead><tbody>
-${rows.map((r) => `<tr class="${r.leads ? "hit" : ""}"><td class="mono">${esc(r.id)}</td><td>${esc(r.name)}</td><td class="num">${r.checked ? (r.leads || "–") : "—"}</td>
-<td class="dim">${r.checked ? esc(r.rules.join(", ")) : "not checked by this scanner"}</td></tr>`).join("")}</tbody></table>`;
+${rows.map((r) => `<tr><td class="mono${r.leads ? " strong" : ""}">${esc(r.id)}</td><td>${esc(r.name)}</td><td class="num${r.leads ? " strong" : ""}">${r.checked ? (r.leads || "–") : "–"}</td>
+<td class="muted small">${r.checked ? esc(r.rules.join(", ")) : "Not covered by this scanner"}</td></tr>`).join("")}</tbody></table>`;
   const cwe = s.cwe.length ? `<table><thead><tr><th>CWE</th><th>Weakness</th><th class="num">Leads</th><th>CWE Top 25 (2024)</th></tr></thead><tbody>
-${s.cwe.map((x) => `<tr><td class="mono">${esc(x.id)}</td><td>${esc(x.name)}</td><td class="num">${x.leads}</td><td>${x.top25 ? '<span class="chip warn">Top 25</span>' : ""}</td></tr>`).join("")}</tbody></table>`
-    : `<p class="empty">No CWE-mapped leads in source code.</p>`;
-  const fws = s.frameworks.map((fw) => `<tr><td><b>${esc(fw.name)}</b></td><td>${fw.requirements.length
-    ? fw.requirements.map((r) => `<span class="req"><b>${esc(r.ref)}</b>${r.name ? " " + esc(r.name) : ""} <span class="dim">(${r.leads})</span></span>`).join("")
-    : '<span class="dim">no related leads in source code</span>'}</td></tr>`).join("");
-  return `<section class="standards"><h2>Standards <small>leads in source code</small></h2>
-<p class="empty" style="margin:0 0 6px">${esc(s.note)}</p>
+${s.cwe.map((x) => `<tr><td class="mono">${esc(x.id)}</td><td>${esc(x.name)}</td><td class="num">${x.leads}</td><td>${x.top25 ? "Yes" : `<span class="muted">–</span>`}</td></tr>`).join("")}</tbody></table>`
+    : `<p class="note">No CWE-mapped leads in source code.</p>`;
+  const fws = s.frameworks.map((fw) => `<tr><td class="strong">${esc(fw.name)}</td><td>${fw.requirements.length
+    ? fw.requirements.map((r) => `<span class="req">${esc(r.ref)}${r.name ? ` ${esc(r.name)}` : ""} <span class="muted">(${r.leads})</span></span>`).join("")
+    : '<span class="muted">No related leads in source code</span>'}</td></tr>`).join("");
+  return `<section><h2><span>${n}</span>Standards mapping</h2>
+<p class="lede">${esc(s.note)}</p>
 ${table("OWASP Top 10 (2021)", s.owasp_top10_2021)}
 ${table("OWASP API Security Top 10 (2023)", s.owasp_api_2023)}
 ${table("OWASP Top 10 for LLM Applications (2025)", s.owasp_llm_2025)}
 <h3>CWE</h3>${cwe}
-<h3>Compliance frameworks <small class="dim">related requirements</small></h3><table><tbody>${fws}</tbody></table></section>`;
-}
-
-function findingsTable(findings: Finding[], withEvidence: boolean, id: string): string {
-  if (!findings.length) return `<p class="empty">No leads here. That isn't proof of security — verify the controls below.</p>`;
-  return `<table class="findings" id="${id}"><thead><tr><th>Severity</th><th>Rule</th><th>Control</th><th>Location</th><th>Issue</th></tr></thead>
-<tbody>${findings.map((f) => findingRow(f, withEvidence)).join("\n")}</tbody></table>`;
-}
-
-function coverageRow(r: CoverageRow, status: "leads" | "none" | "unverified"): string {
-  const chip = { leads: `<span class="chip warn">Leads to verify</span>`, none: `<span class="chip">No signals found</span>`,
-    unverified: `<span class="chip">Not verified</span>` }[status];
-  const sig = r.signals ? `${r.signals.source_count} / ${r.signals.test_count}` : "—";
-  const look = r.id === 17 ? "Independent AI review (Claude Code plugin)" : r.id === 15 ? "Dependency &amp; secret tools"
-    : r.signals?.locations.length ? r.signals.locations.slice(0, 3).map((l) => `<code>${esc(l)}</code>`).join(" ") : `<span class="dim">—</span>`;
-  return `<tr><td class="mono dim">C${r.id}</td><td>${esc(r.name)}</td><td>${chip}</td><td class="num">${r.leads || "–"}</td><td class="num dim">${sig}</td><td class="look">${look}</td></tr>`;
-}
-
-function severityBar(v: View): string {
-  const total = SEVERITY_ORDER.reduce((a, s) => a + (v.sourceCounts[s] ?? 0), 0);
-  if (!total) return `<div class="bar empty-bar"><span style="width:100%"></span></div>`;
-  return `<div class="bar">${SEVERITY_ORDER.filter((s) => v.sourceCounts[s]).map((s) =>
-    `<span class="${SEV_KEY[s]}" style="width:${(100 * v.sourceCounts[s]) / total}%" title="${s}: ${v.sourceCounts[s]}"></span>`).join("")}</div>`;
+<h3>Compliance frameworks</h3><table><thead><tr><th>Framework</th><th>Related requirements (leads)</th></tr></thead><tbody>${fws}</tbody></table></section>`;
 }
 
 export function renderHtml(result: Result, opts: { includeTests?: boolean; now?: Date } = {}): string {
   const v = buildView(result, Boolean(opts.includeTests), opts.now);
   const s = result.stats;
   const inv = result.inventory;
-  const cards = SEVERITY_ORDER.map((sev) => `<div class="card ${SEV_KEY[sev]}${v.sourceCounts[sev] ? "" : " zero"}">
-<div class="n">${v.sourceCounts[sev] ?? 0}</div><div class="l">${SEV_LABEL[sev]}</div></div>`).join("");
-  const chips = [`<button class="chip-btn on" data-f="all">All <b>${v.shown.length}</b></button>`,
-    ...SEVERITY_ORDER.map((sev) => {
-      const n = v.shown.filter((f) => f.severity === sev).length;
-      return n ? `<button class="chip-btn" data-f="${SEV_KEY[sev]}">${SEV_LABEL[sev]} <b>${n}</b></button>` : "";
+  const total = SEVERITY_ORDER.reduce((a, x) => a + (v.sourceCounts[x] ?? 0), 0);
+  const sevRows = SEVERITY_ORDER.map((x) => {
+    const n = v.sourceCounts[x] ?? 0;
+    return `<tr${n ? "" : ' class="zero"'}><td>${sev(x)}</td><td class="num">${n}</td><td class="barcell"><span class="bar ${SEV_KEY[x]}" style="width:${total ? (100 * n) / total : 0}%"></span></td></tr>`;
+  }).join("");
+  const filters = [`<button class="filter on" data-f="all">All (${v.shown.length})</button>`,
+    ...SEVERITY_ORDER.map((x) => {
+      const n = v.shown.filter((f) => f.severity === x).length;
+      return n ? `<button class="filter" data-f="${SEV_KEY[x]}">${SEV_LABEL[x]} (${n})</button>` : "";
     })].join("");
   const coverage = ([
     ...v.coverage.leads.map((r) => [r, "leads"] as const),
     ...v.coverage.noSignals.map((r) => [r, "none"] as const),
     ...v.coverage.notVerified.map((r) => [r, "unverified"] as const),
   ]).sort((x, y) => x[0].id - y[0].id).map(([r, st]) => coverageRow(r, st)).join("\n");
-  const fixes = v.guidance.map((g) => `<li><span class="mono dim">${esc(g.id)}</span> <b>${esc(g.title)}</b>${g.count > 1 ? ` <span class="dim">×${g.count}</span>` : ""}<p>${esc(g.guidance)}</p></li>`).join("");
+  const plan = v.guidance.map((g, i) => `<tr><td class="ref">${i + 1}</td><td><div class="title">${esc(g.title)}</div><div class="muted">${esc(g.guidance)}</div></td>
+<td class="rule">${esc(g.id)}</td><td class="num">${g.count}</td></tr>`).join("");
   const tools = inv.recommended_tools.map((t) => `<tr><td><code>${esc(t.command)}</code></td><td>${esc(t.purpose)}</td>
-<td>${t.installed ? `<span class="chip ok">Installed</span>` : `<span class="chip">Not installed</span>`}</td><td class="dim">${t.needs_network ? "Needs network" : "Offline"}</td></tr>`).join("");
+<td>${t.installed ? "Installed" : `<span class="muted">Not installed</span>`}</td><td class="muted">${t.needs_network ? "Needs network" : "Offline"}</td></tr>`).join("");
+  const date = formatDate(v.generatedAt);
+  // Sections are numbered as they appear (the remediation plan is left out when there is nothing to fix).
+  let sectionNo = 0;
+  const no = () => ++sectionNo;
 
   return `<!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Security Audit · ${esc(v.project)}</title>
+<title>Security assessment · ${esc(v.project)}</title>
 <style>
-:root{--bg:#f6f7fb;--panel:#fff;--ink:#0f172a;--dim:#64748b;--line:#e2e8f0;--soft:#f1f5f9;
---crit:#dc2626;--high:#ea580c;--med:#ca8a04;--low:#2563eb;--info:#64748b;--brand1:#22d3ee;--brand2:#8b5cf6;--ok:#16a34a}
-@media (prefers-color-scheme:dark){:root{--bg:#0b1020;--panel:#111a2e;--ink:#e2e8f0;--dim:#94a3b8;--line:#1f2a44;--soft:#0f1729}}
+:root{--ink:#111827;--body:#374151;--muted:#6b7280;--rule:#e5e7eb;--rule2:#d1d5db;--shade:#f9fafb;--accent:#1f3a5f;
+--crit:#991b1b;--high:#b45309;--med:#a16207;--low:#1d4ed8;--info:#4b5563}
 *{box-sizing:border-box}html{-webkit-text-size-adjust:100%}
-body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.55 -apple-system,BlinkMacSystemFont,"Segoe UI",Inter,Roboto,Helvetica,Arial,sans-serif}
+body{margin:0;background:#eef0f3;color:var(--body);font:14px/1.6 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;font-feature-settings:"tnum" 1}
+.page{max-width:920px;margin:32px auto;background:#fff;border:1px solid var(--rule2);padding:56px 64px 40px}
 .mono,code,pre{font-family:ui-monospace,"SF Mono",Menlo,Consolas,monospace}
-code{font-size:12px;background:var(--soft);padding:1px 5px;border-radius:5px;word-break:break-all}
-.wrap{max-width:1120px;margin:0 auto;padding:0 24px}
-.hero{background:#0b1020;color:#e2e8f0;padding:32px 0 28px;border-bottom:3px solid transparent;border-image:linear-gradient(90deg,var(--brand1),var(--brand2)) 1}
-.hero .wrap{display:flex;gap:20px;align-items:center}
-.logo{width:56px;height:56px;flex:none}
-.hero h1{margin:0;font-size:26px;letter-spacing:-.02em}
-.hero h1 span{background:linear-gradient(90deg,var(--brand1),var(--brand2));-webkit-background-clip:text;background-clip:text;color:transparent}
-.hero .meta{color:#94a3b8;font-size:13px;margin-top:4px}
-.hero .meta b{color:#e2e8f0;font-weight:600}
-main.wrap{padding-top:28px;padding-bottom:48px}
-section{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:22px 24px;margin-bottom:18px}
-h2{font-size:16px;margin:0 0 14px;letter-spacing:-.01em}
-h2 small{color:var(--dim);font-weight:500;margin-left:6px}
-.posture{border-left:5px solid var(--ok)}
-.posture.critical{border-left-color:var(--crit)}.posture.high{border-left-color:var(--high)}.posture.medium{border-left-color:var(--med)}
-.posture h2{font-size:20px;margin-bottom:6px}.posture p{margin:0;color:var(--dim)}
-.cards{display:grid;grid-template-columns:repeat(5,1fr);gap:12px;margin-top:18px}
-.card{border-radius:12px;padding:14px 16px;border:1px solid var(--line);background:var(--soft);position:relative;overflow:hidden}
-.card:before{content:"";position:absolute;inset:0 auto 0 0;width:4px;background:var(--c)}
-.card .n{font-size:30px;font-weight:750;letter-spacing:-.03em;color:var(--c)}.card .l{color:var(--dim);font-size:12px;text-transform:uppercase;letter-spacing:.06em}
-.card.zero .n{color:var(--dim);opacity:.6}
-.crit{--c:var(--crit)}.high{--c:var(--high)}.med{--c:var(--med)}.low{--c:var(--low)}.info{--c:var(--info)}
-.bar{display:flex;height:10px;border-radius:99px;overflow:hidden;background:var(--soft);margin-top:18px}
-.bar span{display:block;background:var(--c)}.empty-bar span{background:var(--ok);opacity:.5}
-.facts{display:flex;flex-wrap:wrap;gap:8px 22px;margin-top:14px;color:var(--dim);font-size:13px}.facts b{color:var(--ink)}
-.toolbar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:12px}
-.chip-btn{border:1px solid var(--line);background:var(--panel);color:var(--ink);border-radius:99px;padding:5px 12px;font:inherit;font-size:12.5px;cursor:pointer}
-.chip-btn b{color:var(--dim);font-weight:600;margin-left:3px}.chip-btn.on{background:var(--ink);color:var(--panel);border-color:var(--ink)}.chip-btn.on b{color:inherit}
-.search{margin-left:auto;border:1px solid var(--line);border-radius:9px;padding:6px 10px;font:inherit;font-size:13px;min-width:220px;background:var(--panel);color:var(--ink)}
+code{font-size:12px;color:var(--ink);word-break:break-all}
+h1,h2,h3{color:var(--ink);font-weight:600;letter-spacing:-.005em}
+.doc-head{border-top:4px solid var(--accent);padding-top:22px}
+.kicker{font-size:11px;font-weight:600;letter-spacing:.14em;text-transform:uppercase;color:var(--accent);margin:0}
+h1{font-size:28px;line-height:1.2;margin:10px 0 22px}
+.meta{display:grid;grid-template-columns:150px 1fr;gap:6px 16px;margin:0;font-size:13px;border-top:1px solid var(--rule);border-bottom:1px solid var(--rule);padding:14px 0}
+.meta dt{color:var(--muted)}.meta dd{margin:0;color:var(--ink);word-break:break-all}
+section{margin-top:40px}
+h2{font-size:18px;margin:0 0 6px;padding-bottom:8px;border-bottom:1px solid var(--rule2);display:flex;gap:12px;align-items:baseline}
+h2 span{color:var(--accent);font-variant-numeric:tabular-nums;min-width:18px}
+h3{font-size:14px;margin:24px 0 8px}
+.lede{color:var(--muted);margin:10px 0 16px;font-size:13.5px}
+.note{color:var(--muted);margin:8px 0}
+.summary{display:grid;grid-template-columns:1fr 1fr;gap:28px;margin-top:16px}
+.rating{border:1px solid var(--rule2);border-left:4px solid var(--c);padding:14px 18px}
+.rating .label{font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted)}
+.rating .value{font-size:20px;font-weight:600;color:var(--c);margin:2px 0 6px}
+.rating p{margin:0;font-size:13.5px}
+.critical{--c:var(--crit)}.high{--c:var(--high)}.medium{--c:var(--med)}.low{--c:#166534}
+dl.facts{display:grid;grid-template-columns:auto 1fr;gap:6px 18px;margin:14px 0 0;font-size:13px}
+dl.facts dt{color:var(--muted)}dl.facts dd{margin:0;color:var(--ink);font-weight:500}
 table{width:100%;border-collapse:collapse;font-size:13px}
-th{text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--dim);font-weight:600;padding:8px 10px;border-bottom:1px solid var(--line)}
-td{padding:9px 10px;border-bottom:1px solid var(--line);vertical-align:top}
-tr:last-child td{border-bottom:0}
-.findings td:nth-child(1){width:86px}.findings td:nth-child(2){width:70px}.findings td:nth-child(3){width:190px}
-.loc{word-break:break-all;max-width:280px}
-.pill{display:inline-block;font-size:11px;font-weight:700;letter-spacing:.03em;padding:2px 8px;border-radius:99px;color:#fff;background:var(--c)}
-.pill.med{color:#1f1300}.dim{color:var(--dim)}.num{text-align:right;font-variant-numeric:tabular-nums}
-.issue{font-weight:550}
-.ctx{font-family:inherit;font-size:11px;color:var(--dim);background:var(--soft);border-radius:5px;padding:0 5px;margin-left:4px}
-details summary{cursor:pointer;color:var(--dim);font-size:12px;margin-top:3px;list-style:none}
-details summary::-webkit-details-marker{display:none}details summary:before{content:"▸ "}details[open] summary:before{content:"▾ "}
-pre{background:var(--soft);border:1px solid var(--line);border-radius:8px;padding:8px 10px;font-size:12px;white-space:pre-wrap;word-break:break-all;margin:8px 0}
-.fix{margin:6px 0 2px}.meta{margin:0;color:var(--dim);font-size:12px}
-.chip{display:inline-block;font-size:11.5px;padding:2px 9px;border-radius:99px;background:var(--soft);color:var(--dim);border:1px solid var(--line);white-space:nowrap}
-.chip.warn{background:#fef3c7;color:#92400e;border-color:#fde68a}.chip.ok{background:#dcfce7;color:#166534;border-color:#bbf7d0}
-@media (prefers-color-scheme:dark){.chip.warn{background:#3b2a07;color:#fcd34d;border-color:#5b420e}.chip.ok{background:#0b3320;color:#86efac;border-color:#14532d}}
-.fixes{list-style:none;margin:0;padding:0;display:grid;gap:12px}.fixes p{margin:3px 0 0;color:var(--dim)}
-.tests>summary{font-size:16px;font-weight:650;color:var(--ink);margin:0}
-.tests>summary .dim{font-weight:500;font-size:14px}
-.tests[open]>summary{margin-bottom:12px}
-.look code{margin-right:4px}
-.empty{color:var(--dim);margin:0}
-.notes{color:var(--dim);margin:0;padding-left:18px}
-footer{color:var(--dim);font-size:12px;text-align:center;padding:0 0 40px}
+th{text-align:left;font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;padding:8px 10px;border-bottom:1px solid var(--rule2);background:var(--shade)}
+td{padding:9px 10px;border-bottom:1px solid var(--rule);vertical-align:top}
+.num{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+.muted{color:var(--muted)}.small{font-size:12px}.strong{color:var(--ink);font-weight:600}
+.sev{display:inline-flex;align-items:center;gap:7px;color:var(--c);font-weight:600;font-size:12.5px;white-space:nowrap}
+.sev i{width:9px;height:9px;background:var(--c);display:inline-block}
+.sev.crit{--c:var(--crit)}.sev.high{--c:var(--high)}.sev.med{--c:var(--med)}.sev.low{--c:var(--low)}.sev.info{--c:var(--info)}
+.severity td{padding:7px 10px}.severity tr.zero .sev{opacity:.45}.severity tr.zero .num{color:var(--muted)}
+.barcell{width:45%;vertical-align:middle}.bar{display:block;height:6px;background:var(--c)}
+.bar.crit{--c:var(--crit)}.bar.high{--c:var(--high)}.bar.med{--c:var(--med)}.bar.low{--c:var(--low)}.bar.info{--c:var(--info)}
+.ref{font-family:ui-monospace,Menlo,monospace;font-size:12px;color:var(--muted);white-space:nowrap;width:56px}
+.rule{font-family:ui-monospace,Menlo,monospace;font-size:12px;color:var(--muted);white-space:nowrap;width:70px}
+.findings td:nth-child(2){width:120px}
+.title{color:var(--ink);font-weight:550}
+.loc{font-family:ui-monospace,Menlo,monospace;font-size:12px;color:var(--body);margin-top:2px;word-break:break-all}
+details summary{cursor:pointer;color:var(--accent);font-size:12px;margin-top:6px;list-style:none}
+details summary::-webkit-details-marker{display:none}
+details summary:before{content:"+ "}details[open] summary:before{content:"– "}
+dl.detail{display:grid;grid-template-columns:110px 1fr;gap:6px 14px;margin:10px 0 4px;font-size:12.5px}
+dl.detail dt{color:var(--muted)}dl.detail dd{margin:0}
+pre{background:var(--shade);border:1px solid var(--rule);padding:8px 10px;font-size:12px;white-space:pre-wrap;word-break:break-all;margin:0;color:var(--ink)}
+.toolbar{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin:14px 0 10px}
+.filter{border:1px solid var(--rule2);background:#fff;color:var(--body);padding:4px 10px;font:inherit;font-size:12.5px;cursor:pointer}
+.filter.on{background:var(--accent);border-color:var(--accent);color:#fff}
+.search{margin-left:auto;border:1px solid var(--rule2);padding:5px 9px;font:inherit;font-size:13px;min-width:230px}
+.status{font-size:12.5px;color:var(--muted);white-space:nowrap}.status.warn{color:var(--high);font-weight:600}
+.look code{display:block;margin:0 0 2px}
+.req{display:inline-block;margin:2px 16px 2px 0}
+ul.notes{margin:10px 0 0;padding-left:18px}ul.notes li{margin:4px 0}
+.confidential{margin-top:44px;padding-top:14px;border-top:1px solid var(--rule2);display:flex;justify-content:space-between;gap:16px;font-size:11.5px;color:var(--muted)}
 .hidden{display:none}
-.tags{margin:6px 0 0;display:flex;flex-wrap:wrap;gap:5px}.tag{font:11px ui-monospace,Menlo,monospace;background:var(--soft);border:1px solid var(--line);border-radius:5px;padding:1px 6px;color:var(--dim)}
-.vibe{display:grid;grid-template-columns:1fr 1fr;gap:8px 18px}.vcheck{display:flex;gap:10px;align-items:flex-start;padding:9px 12px;border:1px solid var(--line);border-radius:10px;background:var(--soft)}
-.vcheck .vmark{color:var(--dim)}.vcheck.found{border-color:#f5c48a;background:#fff7ed}.vcheck.found .vmark,.vcheck.found b{color:var(--high)}
-.vtitle{flex:1;font-weight:550}.vtitle small{display:block;font-weight:400;color:var(--dim);font-size:11.5px;margin-top:2px}.vcheck b{font-variant-numeric:tabular-nums}
-@media (prefers-color-scheme:dark){.vcheck.found{background:#2a1d0c;border-color:#5a3a12}}
-.standards h3{font-size:13.5px;margin:18px 0 8px}.standards tr.hit td:first-child{color:var(--high);font-weight:700}
-.req{display:inline-block;margin:2px 14px 2px 0}
-@media (max-width:760px){.vibe{grid-template-columns:1fr}}
-@media (max-width:760px){.cards{grid-template-columns:repeat(3,1fr)}.findings td:nth-child(3),.findings th:nth-child(3){display:none}.search{min-width:0;width:100%}}
+@media (max-width:760px){.page{margin:0;border:0;padding:28px 18px}.summary{grid-template-columns:1fr}.meta{grid-template-columns:110px 1fr}
+.findings td:nth-child(4),.findings th:nth-child(4){display:none}.search{min-width:0;width:100%;margin-left:0}
+dl.detail{grid-template-columns:1fr;gap:2px}dl.detail dd{min-width:0;margin-bottom:8px}
+table:not(.findings):not(.severity){display:block;overflow-x:auto}}
 @media print{
- @page{size:A4;margin:14mm}
- body{background:#fff;color:#0f172a;font-size:11.5px}
- .hero{-webkit-print-color-adjust:exact;print-color-adjust:exact}
- section{break-inside:avoid-page;border-color:#e2e8f0}section.findings-section,section.coverage{break-inside:auto}
- tr{break-inside:avoid}.toolbar{display:none}details>summary{display:none}details{display:block}
- details:not([open])>*:not(summary){display:block}.wrap{max-width:none;padding:0}
- .card,.pill,.bar span,.chip{-webkit-print-color-adjust:exact;print-color-adjust:exact}
+ @page{size:A4;margin:16mm 15mm}
+ body{background:#fff;font-size:11px}.page{margin:0;border:0;padding:0;max-width:none}
+ section{break-inside:auto}h2,h3{break-after:avoid}tr{break-inside:avoid}
+ .toolbar{display:none}details>summary{display:none}details{display:block}details:not([open])>*:not(summary){display:block}
+ .bar,.sev i,.rating{-webkit-print-color-adjust:exact;print-color-adjust:exact}
 }
 </style></head>
-<body>
-<header class="hero"><div class="wrap">${LOGO}<div>
-<h1><span>SaaS Security Audit</span> Report</h1>
-<div class="meta"><b>${esc(v.project)}</b> · ${esc(result.root)}<br>${esc(formatDate(v.generatedAt))} · saas-security-audit v${esc(VERSION)} · offline static analysis</div>
-</div></div></header>
-<main class="wrap">
+<body><div class="page">
 
-<section class="posture ${v.posture.level}">
-<h2>${esc(v.posture.headline)}</h2><p>${esc(v.posture.detail)}</p>
-<div class="cards">${cards}</div>
-${severityBar(v)}
-<div class="facts"><span><b>${s.files_scanned}</b> files analysed</span><span><b>${v.controlsWithLeads}</b>/22 controls with leads</span>
-${v.hidden.length ? `<span><b>${v.hidden.length}</b> leads in test / local env files</span>` : ""}${s.suppressed ? `<span><b>${s.suppressed}</b> suppressed inline</span>` : ""}
-${v.stack.length ? `<span>Stack: <b>${v.stack.map(esc).join(" · ")}</b></span>` : ""}</div>
+<header class="doc-head">
+<p class="kicker">Security assessment report · Confidential</p>
+<h1>Static security review of ${esc(v.project)}</h1>
+<dl class="meta">
+<dt>Target</dt><dd>${esc(v.project)}</dd>
+<dt>Location</dt><dd class="mono">${esc(result.root)}</dd>
+<dt>Date</dt><dd>${esc(date)}</dd>
+<dt>Method</dt><dd>Read-only static analysis against 22 SaaS security controls; no code executed, no network access</dd>
+<dt>Tool</dt><dd>saas-security-audit v${esc(VERSION)}</dd>
+</dl>
+</header>
+
+<section>
+<h2><span>${no()}</span>Executive summary</h2>
+<div class="summary">
+<div>
+<div class="rating ${v.posture.level}"><div class="label">Overall rating</div><div class="value">${RATING[v.posture.level]}</div><p>${esc(v.posture.headline)}. ${esc(v.posture.detail)}</p></div>
+<dl class="facts"><dt>Files analysed</dt><dd>${s.files_scanned}</dd><dt>Controls with leads</dt><dd>${v.controlsWithLeads} of 22</dd>
+${v.hidden.length ? `<dt>Leads in test or local env files</dt><dd>${v.hidden.length}</dd>` : ""}${s.suppressed ? `<dt>Suppressed inline</dt><dd>${s.suppressed}</dd>` : ""}
+${v.stack.length ? `<dt>Stack detected</dt><dd>${v.stack.map(esc).join(", ")}</dd>` : ""}</dl>
+</div>
+<div><table class="severity"><thead><tr><th>Severity</th><th class="num">Findings</th><th></th></tr></thead><tbody>${sevRows}
+<tr><td class="strong">Total</td><td class="num strong">${total}</td><td></td></tr></tbody></table>
+<p class="note small">Findings in application source code. Test files and gitignored local env files are reported separately.</p></div>
+</div>
 </section>
 
 <section class="findings-section">
-<h2>Findings in source code <small>${v.shown.length}</small></h2>
-${v.shown.length ? `<div class="toolbar">${chips}<input class="search" type="search" placeholder="Search rule, file, issue…" aria-label="Search findings"></div>` : ""}
+<h2><span>${no()}</span>Findings</h2>
+<p class="lede">Each finding is a lead to confirm in code, not a confirmed vulnerability. Evidence is redacted; secret values never appear in this report.</p>
+${v.shown.length ? `<div class="toolbar">${filters}<input class="search" type="search" placeholder="Filter by rule, file or issue" aria-label="Filter findings"></div>` : ""}
 ${findingsTable(v.shown, true, "main-findings")}
+${v.hidden.length ? `<h3>Test files &amp; local env files (${v.hidden.length})</h3><p class="note">Usually intentional samples (fixtures, mocks) or secrets in gitignored local env files. Not counted in the totals above.</p>
+${findingsTable(v.hidden, true, "test-findings")}` : ""}
 </section>
 
-${v.guidance.length ? `<section><h2>How to fix <small>${v.guidance.length} rules</small></h2><ul class="fixes">${fixes}</ul></section>` : ""}
+${v.guidance.length ? `<section><h2><span>${no()}</span>Remediation plan</h2>
+<p class="lede">One action per rule, most severe first.</p>
+<table><thead><tr><th>#</th><th>Action</th><th>Rule</th><th class="num">Findings</th></tr></thead><tbody>${plan}</tbody></table></section>` : ""}
 
-${v.hidden.length ? `<section><details class="tests"><summary>Test files &amp; local env files <span class="dim">${v.hidden.length} leads — usually intentional samples</span></summary>
-${findingsTable(v.hidden, true, "test-findings")}</details></section>` : ""}
-
-<section class="coverage"><h2>Control coverage <small>22 controls</small></h2>
-<table><thead><tr><th></th><th>Control</th><th>Status</th><th class="num">Leads</th><th class="num">Signals src / test</th><th>Look first</th></tr></thead>
+<section><h2><span>${no()}</span>Control coverage</h2>
+<p class="lede">A control passes only when its enforcement is located in code and proven by a negative test; this scan never marks a control as passed. Signals show where enforcement probably lives (source / test files).</p>
+<table><thead><tr><th>Ref.</th><th>Control</th><th>Status</th><th class="num">Leads</th><th class="num">Signals</th><th>Look first</th></tr></thead>
 <tbody>${coverage}</tbody></table>
-<p class="empty" style="margin-top:10px">PASS is never automatic: a control passes only when enforcement is located in code and proven by a negative test.</p>
 </section>
 
-${vibeHtml(result)}
+${vibeHtml(result, no())}
 
-${standardsHtml(result)}
+${standardsHtml(result, no())}
 
-<section><h2>Inventory &amp; recommended tools</h2>
-<div class="facts" style="margin:0 0 12px"><span>Manifests: <b>${inv.manifests.map(esc).join(", ") || "none found"}</b></span><span>Test files: <b>${inv.test_files}</b></span><span>CI files: <b>${inv.ci_files.map(esc).join(", ") || "none found"}</b></span></div>
+<section><h2><span>${no()}</span>Scope, method and limitations</h2>
+<ul class="notes">
+<li>Read-only static analysis on the local machine. No code was executed and nothing was sent anywhere.</li>
+${result.limitations.map((l) => `<li>${esc(l)}</li>`).join("")}
+<li>Findings are leads to validate. For verification, fixes and regression tests, run <code>/saas-security-audit:audit</code> in Claude Code.</li>
+</ul>
+<h3>Inventory</h3>
+<dl class="facts"><dt>Dependency manifests</dt><dd>${inv.manifests.map(esc).join(", ") || "None found"}</dd><dt>Test files</dt><dd>${inv.test_files}</dd><dt>CI files</dt><dd>${inv.ci_files.map(esc).join(", ") || "None found"}</dd></dl>
+<h3>Recommended tools</h3>
 <table><thead><tr><th>Command</th><th>Purpose</th><th>Status</th><th>Network</th></tr></thead><tbody>${tools}</tbody></table>
 </section>
 
-<section><h2>Method &amp; limitations</h2><ul class="notes">
-<li>Read-only static analysis on the local machine. No code was executed and nothing was sent anywhere.</li>
-${result.limitations.map((l) => `<li>${esc(l)}</li>`).join("")}
-<li>Every finding is a lead to validate in code, not a confirmed vulnerability. For verification, fixes, and regression tests, run <code>/saas-security-audit:audit</code> in Claude Code.</li>
-</ul></section>
-</main>
-<footer>Generated by saas-security-audit v${esc(VERSION)} · Secret values are redacted · ${esc(formatDate(v.generatedAt))}</footer>
+<footer class="confidential"><span>Confidential · Prepared with saas-security-audit v${esc(VERSION)} · Secret values redacted</span><span>${esc(date)}</span></footer>
+</div>
 <script>
 (function(){var t=document.getElementById("main-findings");if(!t)return;var rows=[].slice.call(t.querySelectorAll("tr.f")),f="all",q="";
 function apply(){rows.forEach(function(r){var ok=(f==="all"||r.dataset.sev===f)&&(!q||r.dataset.q.indexOf(q)>-1);r.classList.toggle("hidden",!ok);});}
-[].forEach.call(document.querySelectorAll(".chip-btn"),function(b){b.addEventListener("click",function(){[].forEach.call(document.querySelectorAll(".chip-btn"),function(x){x.classList.remove("on")});b.classList.add("on");f=b.dataset.f;apply();});});
+[].forEach.call(document.querySelectorAll(".filter"),function(b){b.addEventListener("click",function(){[].forEach.call(document.querySelectorAll(".filter"),function(x){x.classList.remove("on")});b.classList.add("on");f=b.dataset.f;apply();});});
 var s=document.querySelector(".search");if(s)s.addEventListener("input",function(){q=s.value.trim().toLowerCase();apply();});
 window.addEventListener("beforeprint",function(){[].forEach.call(document.querySelectorAll("details"),function(d){d.open=true});});})();
 </script>

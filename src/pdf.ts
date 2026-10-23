@@ -194,26 +194,32 @@ export function wrap(s: string, font: FontKey, size: number, maxWidth: number, m
 }
 
 // ---------- report layout ----------
+// Laid out like a security assessment document: a title block, numbered sections, hairline rules,
+// one accent colour, and severity as a small square beside its name.
 
-const M = 44;
+const M = 48;
 const CW = PAGE_W - 2 * M;
-const BOTTOM = PAGE_H - 54;
+const BOTTOM = PAGE_H - 58;
 const C = {
-  ink: "#0f172a", dim: "#64748b", faint: "#94a3b8", line: "#e2e8f0", soft: "#f1f5f9", panel: "#f8fafc",
-  navy: "#0b1020", navy2: "#0d1628", brand1: "#22d3ee", brand2: "#8b5cf6", amber: "#fbb024", tile: "#2b5a80",
-  beam: "#7decff", ok: "#16a34a", warnBg: "#fef3c7", warnInk: "#92400e",
+  ink: "#111827", body: "#374151", muted: "#6b7280", faint: "#9ca3af", rule: "#e5e7eb", rule2: "#d1d5db", shade: "#f9fafb",
+  accent: "#1f3a5f", ok: "#166534", warn: "#b45309",
 };
-const SEV: Record<string, { color: string; label: string; ink: string }> = {
-  Critical: { color: "#dc2626", label: "CRITICAL", ink: "#ffffff" },
-  High: { color: "#ea580c", label: "HIGH", ink: "#ffffff" },
-  Medium: { color: "#ca8a04", label: "MEDIUM", ink: "#ffffff" },
-  Low: { color: "#2563eb", label: "LOW", ink: "#ffffff" },
-  Informational: { color: "#64748b", label: "INFO", ink: "#ffffff" },
+const SEV: Record<string, { color: string; label: string }> = {
+  Critical: { color: "#991b1b", label: "Critical" },
+  High: { color: "#b45309", label: "High" },
+  Medium: { color: "#a16207", label: "Medium" },
+  Low: { color: "#1d4ed8", label: "Low" },
+  Informational: { color: "#4b5563", label: "Informational" },
+};
+const RATING: Record<string, { label: string; color: string }> = {
+  critical: { label: "Critical risk", color: SEV.Critical.color }, high: { label: "Elevated risk", color: SEV.High.color },
+  medium: { label: "Moderate risk", color: SEV.Medium.color }, low: { label: "Low risk", color: C.ok },
 };
 
 class Layout {
   doc = new PdfDoc();
   y = 0;
+  section = 0;
   private onNewPage: (() => void) | null = null;
 
   constructor(private project: string) {}
@@ -224,7 +230,7 @@ class Layout {
   pageBreak(): void {
     this.doc.newPage();
     this.runningHeader();
-    this.y = 70;
+    this.y = 72;
     this.onNewPage?.();
   }
   ensure(h: number): boolean {
@@ -239,349 +245,374 @@ class Layout {
 
   runningHeader(): void {
     const d = this.doc;
-    d.gradient(0, 0, PAGE_W, 3, C.brand1, C.brand2);
-    d.text(M, 34, "SaaS Security Audit Report", "F2", 9, C.ink);
-    d.textRight(PAGE_W - M, 34, this.project, "F1", 9, C.dim);
-    d.line(M, 44, PAGE_W - M, 44, C.line);
+    d.text(M, 36, "Security assessment report", "F2", 8, C.accent);
+    d.textRight(PAGE_W - M, 36, this.project, "F1", 8, C.muted);
+    d.line(M, 44, PAGE_W - M, 44, C.rule2, 0.5);
   }
 
-  footers(): void {
+  footers(date: string): void {
     const total = this.doc.pages.length;
     this.doc.pages.forEach((ops, i) => {
-      const fy = PAGE_H - 28;
-      ops.push(`${rgb(C.line)} RG 0.5 w ${f2(M)} ${f2(PAGE_H - (fy - 12))} m ${f2(PAGE_W - M)} ${f2(PAGE_H - (fy - 12))} l S`);
-      const left = `saas-security-audit v${VERSION} · offline static analysis · secret values redacted`;
-      ops.push(`BT /F1 7.5 Tf ${rgb(C.faint)} rg ${f2(M)} ${f2(PAGE_H - fy)} Td ${pdfString(left)} Tj ET`);
+      const fy = PAGE_H - 30;
+      ops.push(`${rgb(C.rule2)} RG 0.5 w ${f2(M)} ${f2(PAGE_H - (fy - 12))} m ${f2(PAGE_W - M)} ${f2(PAGE_H - (fy - 12))} l S`);
+      const left = `Confidential · saas-security-audit v${VERSION} · secret values redacted · ${date}`;
+      ops.push(`BT /F1 7 Tf ${rgb(C.muted)} rg ${f2(M)} ${f2(PAGE_H - fy)} Td ${pdfString(left)} Tj ET`);
       const right = `Page ${i + 1} of ${total}`;
-      ops.push(`BT /F1 7.5 Tf ${rgb(C.faint)} rg ${f2(PAGE_W - M - textWidth(right, "F1", 7.5))} ${f2(PAGE_H - fy)} Td ${pdfString(right)} Tj ET`);
+      ops.push(`BT /F1 7 Tf ${rgb(C.muted)} rg ${f2(PAGE_W - M - textWidth(right, "F1", 7))} ${f2(PAGE_H - fy)} Td ${pdfString(right)} Tj ET`);
     });
   }
 
-  heading(title: string, count?: string, intro?: string): void {
-    this.ensure(intro ? 64 : 44);
-    this.y += 14;
-    this.doc.text(M, this.y + 12, title, "F2", 13, C.ink);
-    if (count) this.doc.text(M + textWidth(title, "F2", 13) + 7, this.y + 12, count, "F1", 10, C.faint);
-    this.y += 20;
-    this.doc.gradient(M, this.y, 36, 2, C.brand1, C.brand2, 12);
+  /** "3  Remediation plan" with a rule under it; numbered in the order sections appear. */
+  heading(title: string, intro?: string): void {
+    this.ensure(intro ? 74 : 50);
+    this.y += 18;
+    const no = String(++this.section);
+    this.doc.text(M, this.y + 12, no, "F2", 12.5, C.accent);
+    this.doc.text(M + 22, this.y + 12, title, "F2", 12.5, C.ink);
+    this.y += 19;
+    this.doc.line(M, this.y, M + CW, this.y, C.rule2, 0.6);
     this.y += 10;
-    if (intro) {
-      for (const l of wrap(intro, "F1", 8.5, CW)) {
-        this.doc.text(M, this.y + 9, l, "F1", 8.5, C.dim);
-        this.y += 12;
-      }
-      this.y += 4;
+    if (intro) this.para(intro, 8.5, C.muted);
+  }
+
+  sub(title: string): void {
+    this.ensure(34);
+    this.y += 6;
+    this.doc.text(M, this.y + 10, title, "F2", 9.5, C.ink);
+    this.y += 16;
+  }
+
+  para(s: string, size = 8.5, color = C.body, indent = 0): void {
+    for (const l of wrap(s, "F1", size, CW - indent)) {
+      this.ensure(size + 4);
+      this.doc.text(M + indent, this.y + size, l, "F1", size, color);
+      this.y += size + 3.5;
     }
+    this.y += 5;
+  }
+
+  /** Table header row on a light band, repeated on later pages. */
+  tableHeader(cols: Array<[string, number, ("left" | "right")?]>): () => void {
+    return () => {
+      this.doc.rect(M, this.y, CW, 17, C.shade);
+      this.doc.line(M, this.y + 17, M + CW, this.y + 17, C.rule2, 0.5);
+      for (const [label, x, align] of cols) {
+        if (align === "right") this.doc.textRight(x, this.y + 11.5, label.toUpperCase(), "F2", 6.5, C.muted);
+        else this.doc.text(x, this.y + 11.5, label.toUpperCase(), "F2", 6.5, C.muted);
+      }
+      this.y += 21;
+    };
   }
 }
 
-function drawLogo(d: PdfDoc, x: number, y: number, size: number): void {
-  const s = size / 64;
-  // Draw in the SVG's 64-unit space, flipped so y grows downward.
-  d.raw(`q ${f2(s)} 0 0 ${f2(-s)} ${f2(x)} ${f2(PAGE_H - y)} cm`);
-  d.raw(`${rgb(C.navy2)} rg ${rgb(C.brand1)} RG 3.5 w 32 4 m 24 7 16 7 9 6 c 9 30 l 9 45 19 54 32 60 c 45 54 55 45 55 30 c 55 6 l 48 7 40 7 32 4 c h B`);
-  const tile = (tx: number, ty: number, col: string) => d.raw(`${rgb(col)} rg ${tx} ${ty} 11 11 re f`);
-  tile(19, 18, C.tile); tile(34, 18, C.tile); tile(19, 33, C.tile); tile(34, 33, C.amber);
-  d.raw(`${rgb(C.beam)} rg 12 37.5 40 2 re f`);
-  d.raw("Q");
+/** A small square in the severity's colour and its name: quiet, readable in grey print too. */
+function sevMark(d: PdfDoc, x: number, baseline: number, sev: string, size = 8): void {
+  const p = SEV[sev];
+  d.rect(x, baseline - size + 1.2, size - 1.6, size - 1.6, p.color);
+  d.text(x + size + 2, baseline, p.label, "F2", size, p.color);
 }
 
-function pill(d: PdfDoc, x: number, y: number, sev: string): void {
-  const p = SEV[sev];
-  const w = textWidth(p.label, "F2", 6.5) + 10;
-  d.roundRect(x, y, w, 12, 6, p.color);
-  d.text(x + 5, y + 8.6, p.label, "F2", 6.5, p.ink);
-}
+const fRef = (i: number, total: number) => `F-${String(i + 1).padStart(Math.max(2, String(total).length), "0")}`;
 
 function findingsTable(L: Layout, findings: Finding[], withEvidence: boolean): void {
-  const cols = { sev: M, rule: M + 62, loc: M + 108, issue: M + 268 };
-  const locW = cols.issue - cols.loc - 10;
-  const issueW = M + CW - cols.issue;
-  const header = () => {
-    L.doc.rect(M, L.y, CW, 18, C.soft);
-    for (const [label, x] of [["SEVERITY", cols.sev], ["RULE", cols.rule], ["LOCATION", cols.loc], ["ISSUE", cols.issue]] as const) {
-      L.doc.text(x + 6, L.y + 12, label, "F2", 6.5, C.dim);
-    }
-    L.y += 22;
-  };
+  const cols = { ref: M + 6, sev: M + 44, body: M + 120, rule: M + CW - 6 };
+  const bodyW = cols.rule - 46 - cols.body;
+  const header = L.tableHeader([["Ref.", cols.ref], ["Severity", cols.sev], ["Finding and location", cols.body], ["Rule", cols.rule, "right"]]);
   L.ensure(60);
   header();
   L.repeatOnNewPage(header);
-  for (const f of findings) {
+  findings.forEach((f, i) => {
+    const titleLines = wrap(f.title, "F2", 8.5, bodyW, 3);
     const locText = `${f.file}:${f.line}${f.context === "source" ? "" : `  (${f.context})`}`;
-    const locLines = wrap(locText, "F3", 7.5, locW - 6, 3);
-    const issueLines = wrap(f.title, "F2", 8.5, issueW - 6, 3);
-    const tags = f.standards ? [f.standards.owasp ?? "", ...f.standards.owasp_api, ...f.standards.owasp_llm, ...f.standards.cwe].filter(Boolean) : [];
-    const metaLine = `C${f.controls[0]} ${CONTROL_SHORT[f.controls[0] - 1]} · confidence ${f.confidence}${tags.length ? " · " + tags.join(" · ") : ""}`;
-    const evLines = withEvidence ? wrap(f.evidence, "F3", 7, issueW - 16, 3) : [];
-    const leftH = locLines.length * 10;
-    const rightH = issueLines.length * 11 + 11 + (evLines.length ? evLines.length * 9 + 8 : 0);
-    const h = Math.max(leftH, rightH, 14) + 10;
+    const locLines = wrap(locText, "F3", 7.5, bodyW, 3);
+    const tags = f.standards ? [f.standards.owasp ? `OWASP ${f.standards.owasp}` : "", ...f.standards.owasp_api.map((a) => `OWASP ${a}`), ...f.standards.owasp_llm.map((a) => `OWASP ${a}`), ...f.standards.cwe].filter(Boolean) : [];
+    const metaLines = wrap(`C${f.controls[0]} ${CONTROL_SHORT[f.controls[0] - 1]} · confidence ${f.confidence}${tags.length ? " · " + tags.join(" · ") : ""}`, "F1", 7, bodyW);
+    const evLines = withEvidence ? wrap(f.evidence, "F3", 7, bodyW - 12, 3) : [];
+    const fixLines = withEvidence ? wrap(`Remediation: ${f.guidance}`, "F1", 7.5, bodyW, 4) : [];
+    const h = titleLines.length * 11 + locLines.length * 9.5 + metaLines.length * 9 + (evLines.length ? evLines.length * 9 + 10 : 0) + fixLines.length * 10 + 14;
     L.ensure(h);
-    const top = L.y + 3;
-    pill(L.doc, cols.sev + 6, top, f.severity);
-    L.doc.text(cols.rule + 6, top + 9, f.id, "F3", 7.5, C.dim);
-    locLines.forEach((l, i) => L.doc.text(cols.loc + 6, top + 9 + i * 10, l, "F3", 7.5, C.ink));
-    let iy = top + 9;
-    for (const l of issueLines) {
-      L.doc.text(cols.issue + 6, iy, l, "F2", 8.5, C.ink);
-      iy += 11;
-    }
-    L.doc.text(cols.issue + 6, iy, metaLine, "F1", 7, C.faint);
-    iy += 4;
+    const top = L.y + 10;
+    L.doc.text(cols.ref, top, fRef(i, findings.length), "F3", 7.5, C.muted);
+    sevMark(L.doc, cols.sev, top, f.severity, 7.5);
+    L.doc.textRight(cols.rule, top, f.id, "F3", 7.5, C.muted);
+    let y = top;
+    for (const l of titleLines) { L.doc.text(cols.body, y, l, "F2", 8.5, C.ink); y += 11; }
+    for (const l of locLines) { L.doc.text(cols.body, y - 1, l, "F3", 7.5, C.body); y += 9.5; }
+    for (const l of metaLines) { L.doc.text(cols.body, y, l, "F1", 7, C.muted); y += 9; }
     if (evLines.length) {
-      const boxH = evLines.length * 9 + 5;
-      L.doc.roundRect(cols.issue + 6, iy, issueW - 6, boxH, 3, C.panel, C.line, 0.4);
-      evLines.forEach((l, i) => L.doc.text(cols.issue + 11, iy + 9 + i * 9, l, "F3", 7, C.dim));
+      const boxH = evLines.length * 9 + 6;
+      L.doc.rect(cols.body, y - 4, bodyW, boxH, C.shade);
+      L.doc.rect(cols.body, y - 4, 1.5, boxH, C.rule2);
+      evLines.forEach((l, k) => L.doc.text(cols.body + 7, y + 5 + k * 9, l, "F3", 7, C.ink));
+      y += boxH + 4;
     }
+    for (const l of fixLines) { L.doc.text(cols.body, y + 2, l, "F1", 7.5, C.body); y += 10; }
     L.y += h;
-    L.doc.line(M, L.y - 2, M + CW, L.y - 2, C.line, 0.4);
-  }
+    L.doc.line(M, L.y - 3, M + CW, L.y - 3, C.rule, 0.4);
+  });
   L.repeatOnNewPage(null);
   L.y += 6;
 }
 
 function coverageTable(L: Layout, rows: CoverageRow[], leadsIds: Set<number>, noSignalIds: Set<number>): void {
-  const cols = { id: M, name: M + 34, status: M + 262, leads: M + 372, sig: M + 420 };
-  const header = () => {
-    L.doc.rect(M, L.y, CW, 18, C.soft);
-    for (const [label, x] of [["", cols.id], ["CONTROL", cols.name], ["STATUS", cols.status], ["LEADS", cols.leads], ["SIGNALS SRC / TEST", cols.sig]] as const) {
-      L.doc.text(x + 6, L.y + 12, label, "F2", 6.5, C.dim);
-    }
-    L.y += 20;
-  };
+  const cols = { id: M + 6, name: M + 36, status: M + 300, leads: M + 408, sig: M + CW - 6 };
+  const header = L.tableHeader([["Ref.", cols.id], ["Control", cols.name], ["Status", cols.status], ["Leads", cols.leads, "right"], ["Signals src / test", cols.sig, "right"]]);
   L.ensure(80);
   header();
   L.repeatOnNewPage(header);
   for (const r of rows) {
-    L.ensure(19);
-    const base = L.y + 12;
-    L.doc.text(cols.id + 6, base, `C${r.id}`, "F3", 7.5, C.faint);
-    L.doc.text(cols.name + 6, base, wrap(r.name, "F1", 8.5, cols.status - cols.name - 10, 1)[0], "F1", 8.5, C.ink);
-    const [label, bg, ink] = leadsIds.has(r.id) ? ["Leads to verify", C.warnBg, C.warnInk]
-      : noSignalIds.has(r.id) ? ["No signals found", C.soft, C.dim] : ["Not verified", C.soft, C.dim];
-    const w = textWidth(label, "F1", 7) + 12;
-    L.doc.roundRect(cols.status + 6, L.y + 3.5, w, 12, 6, bg, C.line, 0.4);
-    L.doc.text(cols.status + 12, base, label, "F1", 7, ink);
-    L.doc.text(cols.leads + 6, base, r.leads ? String(r.leads) : "–", r.leads ? "F2" : "F1", 8.5, r.leads ? C.warnInk : C.faint);
-    L.doc.text(cols.sig + 6, base, r.signals ? `${r.signals.source_count} / ${r.signals.test_count}` : "—", "F1", 8.5, C.dim);
-    L.y += 19;
-    L.doc.line(M, L.y, M + CW, L.y, C.line, 0.3);
+    L.ensure(17);
+    const base = L.y + 10;
+    L.doc.text(cols.id, base, `C${r.id}`, "F3", 7.5, C.muted);
+    L.doc.text(cols.name, base, wrap(r.name, "F1", 8.5, cols.status - cols.name - 10, 1)[0], "F1", 8.5, C.ink);
+    const leads = leadsIds.has(r.id);
+    const label = leads ? "Leads to verify" : noSignalIds.has(r.id) ? "No signals found" : "Not verified";
+    L.doc.text(cols.status, base, label, leads ? "F2" : "F1", 8, leads ? C.warn : C.muted);
+    L.doc.textRight(cols.leads, base, r.leads ? String(r.leads) : "–", r.leads ? "F2" : "F1", 8.5, r.leads ? C.ink : C.faint);
+    L.doc.textRight(cols.sig, base, r.signals ? `${r.signals.source_count} / ${r.signals.test_count}` : "–", "F1", 8, C.muted);
+    L.y += 17;
+    L.doc.line(M, L.y - 3, M + CW, L.y - 3, C.rule, 0.3);
   }
   L.repeatOnNewPage(null);
-  L.y += 8;
+  L.y += 6;
 }
 
 export function renderPdf(result: Result, opts: { includeTests?: boolean; now?: Date } = {}): Buffer {
   const v = buildView(result, Boolean(opts.includeTests), opts.now);
   const L = new Layout(v.project);
   const d = L.doc;
+  const date = formatDate(v.generatedAt);
   L.firstPage();
 
-  // Cover band
-  d.rect(0, 0, PAGE_W, 128, C.navy);
-  d.gradient(0, 128, PAGE_W, 3.5, C.brand1, C.brand2);
-  drawLogo(d, M, 30, 62);
-  d.text(M + 78, 54, "SaaS Security Audit Report", "F2", 22, "#ffffff");
-  d.text(M + 78, 74, v.project, "F2", 11.5, "#e2e8f0");
-  d.text(M + 78, 90, wrap(result.root, "F1", 8.5, CW - 80, 1)[0], "F1", 8.5, C.faint);
-  d.text(M + 78, 104, `${formatDate(v.generatedAt)}  ·  saas-security-audit v${VERSION}  ·  offline static analysis`, "F1", 8.5, C.faint);
-  L.y = 152;
-
-  // Posture
-  const postureColor = { critical: SEV.Critical.color, high: SEV.High.color, medium: SEV.Medium.color, low: C.ok }[v.posture.level];
-  const detail = wrap(v.posture.detail, "F1", 9.5, CW - 22);
-  const postureH = 30 + detail.length * 13;
-  d.roundRect(M, L.y, CW, postureH, 8, C.panel, C.line, 0.5);
-  d.rect(M, L.y, 4, postureH, postureColor);
-  d.text(M + 16, L.y + 21, v.posture.headline, "F2", 14, C.ink);
-  detail.forEach((l, i) => d.text(M + 16, L.y + 37 + i * 13, l, "F1", 9.5, C.dim));
-  L.y += postureH + 14;
-
-  // Severity cards
-  const gap = 10;
-  const cardW = (CW - gap * 4) / 5;
-  SEVERITY_ORDER.forEach((sev, i) => {
-    const x = M + i * (cardW + gap);
-    const n = v.sourceCounts[sev] ?? 0;
-    d.roundRect(x, L.y, cardW, 58, 8, C.panel, C.line, 0.5);
-    d.rect(x, L.y + 8, 3, 42, SEV[sev].color);
-    d.text(x + 14, L.y + 31, String(n), "F2", 22, n ? SEV[sev].color : "#cbd5e1");
-    d.text(x + 14, L.y + 46, SEV[sev].label, "F2", 6.5, C.dim);
-  });
-  L.y += 70;
-  d.text(M, L.y + 2, "Counts are for findings in source code. Test files and gitignored local env files are listed separately.", "F1", 7.5, C.faint);
-  L.y += 12;
-
-  // Stacked severity bar
-  const total = SEVERITY_ORDER.reduce((a, s) => a + (v.sourceCounts[s] ?? 0), 0);
-  d.roundRect(M, L.y, CW, 8, 4, C.soft);
-  if (total) {
-    let x = M;
-    for (const sev of SEVERITY_ORDER) {
-      const w = (CW * (v.sourceCounts[sev] ?? 0)) / total;
-      if (w > 0) { d.rect(x, L.y, w, 8, SEV[sev].color); x += w; }
-    }
-  }
-  L.y += 22;
-
-  // Key facts
-  const facts = [
-    [`${result.stats.files_scanned}`, "files analysed"],
-    [`${v.controlsWithLeads}/22`, "controls with leads"],
-    [`${v.hidden.length}`, "leads in tests / local env"],
-    [`${result.stats.suppressed}`, "suppressed inline"],
+  // Title block
+  d.rect(M, 52, CW, 3.5, C.accent);
+  d.text(M, 80, "SECURITY ASSESSMENT REPORT  ·  CONFIDENTIAL", "F2", 7.5, C.accent);
+  const titleLines = wrap(`Static security review of ${v.project}`, "F2", 20, CW);
+  titleLines.forEach((l, i) => d.text(M, 106 + i * 24, l, "F2", 20, C.ink));
+  L.y = 106 + (titleLines.length - 1) * 24 + 18;
+  d.line(M, L.y, M + CW, L.y, C.rule, 0.5);
+  L.y += 8;
+  const meta: Array<[string, string, FontKey]> = [
+    ["Target", v.project, "F1"],
+    ["Location", result.root, "F3"],
+    ["Date", date, "F1"],
+    ["Method", "Read-only static analysis against 22 SaaS security controls; no code executed, no network access", "F1"],
+    ["Tool", `saas-security-audit v${VERSION}`, "F1"],
   ];
-  const fw = CW / facts.length;
-  facts.forEach(([n, label], i) => {
-    d.text(M + i * fw, L.y + 14, n, "F2", 15, C.ink);
-    d.text(M + i * fw, L.y + 27, label, "F1", 7.5, C.dim);
-  });
-  L.y += 36;
-  if (v.stack.length) {
-    for (const l of wrap(`Stack detected: ${v.stack.join(" · ")}`, "F1", 8.5, CW)) {
-      d.text(M, L.y + 9, l, "F1", 8.5, C.dim);
-      L.y += 12;
-    }
+  for (const [k, val, font] of meta) {
+    const lines = wrap(val, font, 8.5, CW - 110, 2);
+    d.text(M, L.y + 10, k, "F1", 8.5, C.muted);
+    lines.forEach((l, i) => d.text(M + 110, L.y + 10 + i * 11, l, font, 8.5, C.ink));
+    L.y += lines.length * 11 + 4;
+  }
+  L.y += 4;
+  d.line(M, L.y, M + CW, L.y, C.rule, 0.5);
+
+  // 1 Executive summary
+  L.heading("Executive summary");
+  const colGap = 22;
+  const leftW = (CW - colGap) * 0.48;
+  const rightX = M + leftW + colGap;
+  const rightW = CW - leftW - colGap;
+  const top = L.y;
+  const rating = RATING[v.posture.level];
+  const ratingText = wrap(`${v.posture.headline}. ${v.posture.detail}`, "F1", 8.5, leftW - 24);
+  const boxH = 44 + ratingText.length * 11.5;
+  d.rect(M, top, leftW, boxH, "#ffffff");
+  d.line(M, top, M + leftW, top, C.rule2, 0.6);
+  d.line(M, top + boxH, M + leftW, top + boxH, C.rule2, 0.6);
+  d.line(M + leftW, top, M + leftW, top + boxH, C.rule2, 0.6);
+  d.rect(M, top, 3, boxH, rating.color);
+  d.text(M + 14, top + 15, "OVERALL RATING", "F2", 6.5, C.muted);
+  d.text(M + 14, top + 32, rating.label, "F2", 14, rating.color);
+  ratingText.forEach((l, i) => d.text(M + 14, top + 47 + i * 11.5, l, "F1", 8.5, C.body));
+  let ly = top + boxH + 12;
+  const facts: Array<[string, string]> = [["Files analysed", String(result.stats.files_scanned)], ["Controls with leads", `${v.controlsWithLeads} of 22`]];
+  if (v.hidden.length) facts.push(["Leads in test / local env files", String(v.hidden.length)]);
+  if (result.stats.suppressed) facts.push(["Suppressed inline", String(result.stats.suppressed)]);
+  if (v.stack.length) facts.push(["Stack detected", v.stack.join(", ")]);
+  for (const [k, val] of facts) {
+    const lines = wrap(val, "F2", 8.5, leftW - 130, 2);
+    d.text(M, ly + 9, k, "F1", 8.5, C.muted);
+    lines.forEach((l, i) => d.text(M + 130, ly + 9 + i * 11, l, "F2", 8.5, C.ink));
+    ly += lines.length * 11 + 3;
   }
 
-  // Findings
-  L.heading("Findings in source code", String(v.shown.length),
-    "Each finding is a lead to validate in code, not a confirmed vulnerability. Evidence is redacted; secret values never appear in this report.");
+  // Severity table on the right
+  let ry = top;
+  d.rect(rightX, ry, rightW, 17, C.shade);
+  d.line(rightX, ry + 17, rightX + rightW, ry + 17, C.rule2, 0.5);
+  d.text(rightX + 6, ry + 11.5, "SEVERITY", "F2", 6.5, C.muted);
+  d.textRight(rightX + 120, ry + 11.5, "FINDINGS", "F2", 6.5, C.muted);
+  ry += 17;
+  const total = SEVERITY_ORDER.reduce((a, s) => a + (v.sourceCounts[s] ?? 0), 0);
+  for (const sev of SEVERITY_ORDER) {
+    const n = v.sourceCounts[sev] ?? 0;
+    const base = ry + 13;
+    if (n) sevMark(d, rightX + 6, base, sev, 8);
+    else { d.rect(rightX + 6, base - 6.8, 6.4, 6.4, C.rule2); d.text(rightX + 16, base, SEV[sev].label, "F1", 8, C.faint); }
+    d.textRight(rightX + 120, base, String(n), n ? "F2" : "F1", 8.5, n ? C.ink : C.faint);
+    if (n && total) d.rect(rightX + 132, base - 5.5, ((rightW - 140) * n) / total, 4, SEV[sev].color);
+    ry += 19;
+    d.line(rightX, ry, rightX + rightW, ry, C.rule, 0.3);
+  }
+  d.text(rightX + 6, ry + 13, "Total", "F2", 8.5, C.ink);
+  d.textRight(rightX + 120, ry + 13, String(total), "F2", 8.5, C.ink);
+  ry += 22;
+  for (const l of wrap("Findings in application source code. Test files and gitignored local env files are reported separately.", "F1", 7, rightW)) {
+    d.text(rightX, ry + 7, l, "F1", 7, C.muted);
+    ry += 9.5;
+  }
+  L.y = Math.max(ly, ry) + 6;
+
+  // 2 Findings
+  L.heading("Findings", "Each finding is a lead to confirm in code, not a confirmed vulnerability. Evidence is redacted; secret values never appear in this report.");
   if (v.shown.length) findingsTable(L, v.shown, true);
-  else {
-    d.text(M, L.y + 10, "No leads in source code. That is not proof of security — verify the controls below.", "F1", 9, C.dim);
-    L.y += 20;
-  }
-
-  // How to fix
-  if (v.guidance.length) {
-    L.heading("How to fix", `${v.guidance.length} rules`);
-    for (const g of v.guidance) {
-      const lines = wrap(g.guidance, "F1", 8.5, CW - 70);
-      L.ensure(18 + lines.length * 11);
-      d.text(M, L.y + 10, g.id, "F3", 8, C.faint);
-      d.text(M + 56, L.y + 10, g.title + (g.count > 1 ? `  ×${g.count}` : ""), "F2", 9, C.ink);
-      lines.forEach((l, i) => d.text(M + 56, L.y + 23 + i * 11, l, "F1", 8.5, C.dim));
-      L.y += 18 + lines.length * 11 + 6;
-    }
-  }
-
-  // Test / local env findings
+  else L.para("No leads in source code. This is not evidence that the application is secure; the controls under Control coverage still need verification.", 9, C.muted);
   if (v.hidden.length) {
-    L.heading("Test files & local env files", String(v.hidden.length),
-      "Usually intentional samples (fixtures, mocks) or secrets in gitignored local env files. Review them, but they don't count toward the source-code totals.");
+    L.sub(`Test files & local env files (${v.hidden.length})`);
+    L.para("Usually intentional samples (fixtures, mocks) or secrets in gitignored local env files. Not counted in the totals above.", 8, C.muted);
     findingsTable(L, v.hidden, false);
   }
 
-  // Coverage
-  L.heading("Control coverage", "22 controls",
-    "PASS is never automatic: a control passes only when enforcement is located in code and proven by a negative test. Signals show where enforcement probably lives.");
+  // 3 Remediation plan
+  if (v.guidance.length) {
+    L.heading("Remediation plan", "One action per rule, most severe first.");
+    const cols = { no: M + 6, act: M + 30, rule: M + CW - 100, n: M + CW - 6 };
+    const header = L.tableHeader([["#", cols.no], ["Action", cols.act], ["Rule", cols.rule], ["Findings", cols.n, "right"]]);
+    header();
+    L.repeatOnNewPage(header);
+    v.guidance.forEach((g, i) => {
+      const lines = wrap(g.guidance, "F1", 8, cols.rule - cols.act - 12);
+      const tl = wrap(g.title, "F2", 8.5, cols.rule - cols.act - 12, 2);
+      const h = tl.length * 11 + lines.length * 10.5 + 10;
+      L.ensure(h);
+      const b = L.y + 10;
+      d.text(cols.no, b, String(i + 1), "F1", 8, C.muted);
+      tl.forEach((l, k) => d.text(cols.act, b + k * 11, l, "F2", 8.5, C.ink));
+      lines.forEach((l, k) => d.text(cols.act, b + tl.length * 11 + k * 10.5, l, "F1", 8, C.body));
+      d.text(cols.rule, b, g.id, "F3", 7.5, C.muted);
+      d.textRight(cols.n, b, String(g.count), "F1", 8.5, C.ink);
+      L.y += h;
+      d.line(M, L.y - 3, M + CW, L.y - 3, C.rule, 0.3);
+    });
+    L.repeatOnNewPage(null);
+  }
+
+  // 4 Control coverage
+  L.heading("Control coverage", "A control passes only when its enforcement is located in code and proven by a negative test; this scan never marks a control as passed. Signals show where enforcement probably lives (source / test files).");
   const rows = [...v.coverage.leads, ...v.coverage.noSignals, ...v.coverage.notVerified].sort((a, b) => a.id - b.id);
   coverageTable(L, rows, new Set(v.coverage.leads.map((r) => r.id)), new Set(v.coverage.noSignals.map((r) => r.id)));
 
-  // Vibe-code review
+  // 5 Vibe-code review
   const found = result.vibe_review.filter((x) => x.status === "found").length;
-  L.heading("Vibe-code review", `${found} of ${result.vibe_review.length} found`,
-    "Mistakes that AI-generated apps make most often. \"Not found\" means no lead matched; it is not a pass.");
-  const colW = (CW - 12) / 2;
-  for (let k = 0; k < result.vibe_review.length; k += 2) {
-    L.ensure(34);
-    [result.vibe_review[k], result.vibe_review[k + 1]].forEach((v, col) => {
-      if (!v) return;
-      const x = M + col * (colW + 12);
-      const hit = v.status === "found";
-      d.roundRect(x, L.y, colW, 28, 5, hit ? "#fff7ed" : C.panel, hit ? "#f5c48a" : C.line, 0.5);
-      d.text(x + 9, L.y + 12, hit ? "!" : "o", "F2", 8, hit ? SEV.High.color : C.faint);
-      d.text(x + 20, L.y + 12, wrap(v.title, "F2", 8.5, colW - 60, 1)[0], "F2", 8.5, C.ink);
-      d.text(x + 20, L.y + 22, v.rules.join(" · "), "F3", 6.5, C.faint);
-      d.textRight(x + colW - 9, L.y + 15, hit ? String(v.leads) : "–", "F2", 10, hit ? SEV.High.color : C.faint);
-    });
-    L.y += 34;
+  L.heading("Vibe-code review", `Patterns common in AI-generated code. ${found} of ${result.vibe_review.length} were matched. "Not matched" means no lead was found; it is not a pass.`);
+  {
+    const cols = { t: M + 6, rules: M + 250, res: M + 380, n: M + CW - 6 };
+    const header = L.tableHeader([["Pattern", cols.t], ["Rules", cols.rules], ["Result", cols.res], ["Leads", cols.n, "right"]]);
+    header();
+    L.repeatOnNewPage(header);
+    for (const x of result.vibe_review) {
+      L.ensure(17);
+      const b = L.y + 10;
+      const hit = x.status === "found";
+      d.text(cols.t, b, wrap(x.title, "F1", 8.5, cols.rules - cols.t - 10, 1)[0], "F1", 8.5, C.ink);
+      d.text(cols.rules, b, wrap(x.rules.join(", "), "F3", 7, cols.res - cols.rules - 8, 1)[0], "F3", 7, C.muted);
+      d.text(cols.res, b, hit ? "Matched" : "Not matched", hit ? "F2" : "F1", 8, hit ? C.warn : C.muted);
+      d.textRight(cols.n, b, hit ? String(x.leads) : "–", hit ? "F2" : "F1", 8.5, hit ? C.ink : C.faint);
+      L.y += 17;
+      d.line(M, L.y - 3, M + CW, L.y - 3, C.rule, 0.3);
+    }
+    L.repeatOnNewPage(null);
   }
 
-  // Standards
+  // 6 Standards mapping
   const st = result.standards;
-  L.heading("Standards", "leads in source code", st.note);
-  const stdTable = (title: string, rows: typeof st.owasp_top10_2021) => {
-    L.ensure(40);
-    d.text(M, L.y + 10, title, "F2", 9.5, C.ink);
-    L.y += 16;
-    for (const r of rows) {
-      L.ensure(14);
-      d.text(M + 4, L.y + 9, r.id, "F3", 7.5, r.leads ? SEV.High.color : C.faint);
-      d.text(M + 48, L.y + 9, wrap(r.name, "F1", 8, 210, 1)[0], "F1", 8, C.ink);
-      d.text(M + 270, L.y + 9, r.checked ? (r.leads ? String(r.leads) : "–") : "—", r.leads ? "F2" : "F1", 8, r.leads ? SEV.High.color : C.faint);
-      d.text(M + 300, L.y + 9, wrap(r.checked ? r.rules.join(", ") : "not checked by this scanner", "F3", 6.5, CW - 300, 1)[0], "F3", 6.5, C.dim);
-      L.y += 13;
-      d.line(M, L.y, M + CW, L.y, C.line, 0.3);
+  L.heading("Standards mapping", st.note);
+  const stdTable = (title: string, rs: typeof st.owasp_top10_2021) => {
+    L.sub(title);
+    const cols = { id: M + 6, name: M + 56, n: M + 310, rules: M + 324 };
+    const header = L.tableHeader([["ID", cols.id], ["Category", cols.name], ["Leads", cols.n, "right"], ["Rules", cols.rules]]);
+    header();
+    L.repeatOnNewPage(header);
+    for (const r of rs) {
+      L.ensure(15);
+      const b = L.y + 9.5;
+      d.text(cols.id, b, r.id, "F3", 7.5, r.leads ? C.ink : C.muted);
+      d.text(cols.name, b, wrap(r.name, "F1", 8, cols.n - cols.name - 24, 1)[0], "F1", 8, C.ink);
+      d.textRight(cols.n, b, r.checked ? (r.leads ? String(r.leads) : "–") : "–", r.leads ? "F2" : "F1", 8, r.leads ? C.ink : C.faint);
+      d.text(cols.rules, b, wrap(r.checked ? r.rules.join(", ") : "Not covered by this scanner", "F3", 6.5, M + CW - cols.rules, 1)[0], "F3", 6.5, C.muted);
+      L.y += 15;
+      d.line(M, L.y - 2.5, M + CW, L.y - 2.5, C.rule, 0.3);
     }
-    L.y += 8;
+    L.repeatOnNewPage(null);
+    L.y += 4;
   };
   stdTable("OWASP Top 10 (2021)", st.owasp_top10_2021);
   stdTable("OWASP API Security Top 10 (2023)", st.owasp_api_2023);
   stdTable("OWASP Top 10 for LLM Applications (2025)", st.owasp_llm_2025);
-  L.ensure(30);
-  d.text(M, L.y + 10, "CWE", "F2", 9.5, C.ink);
-  L.y += 16;
-  if (!st.cwe.length) { d.text(M + 4, L.y + 9, "No CWE-mapped leads in source code.", "F1", 8, C.dim); L.y += 14; }
-  for (const x of st.cwe) {
-    L.ensure(14);
-    d.text(M + 4, L.y + 9, x.id, "F3", 7.5, C.ink);
-    d.text(M + 70, L.y + 9, x.name, "F1", 8, C.ink);
-    d.text(M + 330, L.y + 9, String(x.leads), "F2", 8, C.ink);
-    if (x.top25) { d.roundRect(M + 360, L.y + 1, 44, 11, 5, C.warnBg, C.line, 0.3); d.text(M + 366, L.y + 9, "Top 25", "F1", 6.5, C.warnInk); }
-    L.y += 13;
-    d.line(M, L.y, M + CW, L.y, C.line, 0.3);
+  L.sub("CWE");
+  if (!st.cwe.length) L.para("No CWE-mapped leads in source code.", 8, C.muted);
+  else {
+    const cols = { id: M + 6, name: M + 70, n: M + 380, top: M + 396 };
+    const header = L.tableHeader([["CWE", cols.id], ["Weakness", cols.name], ["Leads", cols.n, "right"], ["CWE Top 25 (2024)", cols.top]]);
+    header();
+    L.repeatOnNewPage(header);
+    for (const x of st.cwe) {
+      L.ensure(15);
+      const b = L.y + 9.5;
+      d.text(cols.id, b, x.id, "F3", 7.5, C.ink);
+      d.text(cols.name, b, wrap(x.name, "F1", 8, cols.n - cols.name - 24, 1)[0], "F1", 8, C.ink);
+      d.textRight(cols.n, b, String(x.leads), "F2", 8, C.ink);
+      d.text(cols.top, b, x.top25 ? "Yes" : "–", "F1", 8, x.top25 ? C.ink : C.faint);
+      L.y += 15;
+      d.line(M, L.y - 2.5, M + CW, L.y - 2.5, C.rule, 0.3);
+    }
+    L.repeatOnNewPage(null);
   }
-  L.y += 8;
-  L.ensure(30);
-  d.text(M, L.y + 10, "Compliance frameworks (related requirements)", "F2", 9.5, C.ink);
-  L.y += 16;
+  L.sub("Compliance frameworks (related requirements)");
   for (const fw of st.frameworks) {
-    const text = fw.requirements.map((r) => `${r.ref}${r.name ? " " + r.name : ""} (${r.leads})`).join("  ·  ") || "no related leads in source code";
+    const text = fw.requirements.map((r) => `${r.ref}${r.name ? " " + r.name : ""} (${r.leads})`).join("  ·  ") || "No related leads in source code";
     const lines = wrap(text, "F1", 8, CW - 150);
-    L.ensure(lines.length * 11 + 6);
-    d.text(M + 4, L.y + 9, fw.name, "F2", 8, C.ink);
-    lines.forEach((l, i) => d.text(M + 150, L.y + 9 + i * 11, l, "F1", 8, C.dim));
+    L.ensure(lines.length * 11 + 8);
+    d.text(M + 6, L.y + 9, fw.name, "F2", 8, C.ink);
+    lines.forEach((l, i) => d.text(M + 150, L.y + 9 + i * 11, l, "F1", 8, fw.requirements.length ? C.body : C.muted));
     L.y += lines.length * 11 + 6;
+    d.line(M, L.y - 2, M + CW, L.y - 2, C.rule, 0.3);
   }
 
-  // Inventory & tools
-  const inv = result.inventory;
-  L.heading("Inventory & recommended tools");
-  const invLines = [
-    `Dependency manifests: ${inv.manifests.join(", ") || "none found"}`,
-    `Test files: ${inv.test_files}  ·  CI files: ${inv.ci_files.join(", ") || "none found"}`,
-  ];
-  for (const l of invLines.flatMap((t) => wrap(t, "F1", 8.5, CW))) {
-    L.ensure(12);
-    d.text(M, L.y + 9, l, "F1", 8.5, C.ink);
-    L.y += 12;
-  }
-  L.y += 6;
-  for (const t of inv.recommended_tools) {
-    L.ensure(14);
-    d.text(M, L.y + 9, t.command, "F3", 8, C.ink);
-    d.textRight(M + CW, L.y + 9, `${t.installed ? "installed" : "not installed"} · ${t.needs_network ? "needs network" : "offline"}`, "F1", 7.5, C.dim);
-    L.y += 14;
-  }
-
-  // Method & limitations
-  L.heading("Method & limitations");
+  // 7 Scope, method and limitations
+  L.heading("Scope, method and limitations");
   const notes = [
     "Read-only static analysis on the local machine. No code was executed and nothing was sent anywhere.",
     ...result.limitations,
-    "For verification, fixes, and regression tests, run /saas-security-audit:audit in Claude Code.",
+    "Findings are leads to validate. For verification, fixes and regression tests, run /saas-security-audit:audit in Claude Code.",
   ];
   for (const n of notes) {
     const lines = wrap(n, "F1", 8.5, CW - 12);
     L.ensure(lines.length * 12 + 4);
-    d.text(M, L.y + 9, "•", "F1", 8.5, C.faint);
-    lines.forEach((l, i) => d.text(M + 12, L.y + 9 + i * 12, l, "F1", 8.5, C.dim));
-    L.y += lines.length * 12 + 4;
+    d.text(M, L.y + 9, "–", "F1", 8.5, C.muted);
+    lines.forEach((l, i) => d.text(M + 12, L.y + 9 + i * 12, l, "F1", 8.5, C.body));
+    L.y += lines.length * 12 + 3;
+  }
+  const inv = result.inventory;
+  L.sub("Inventory");
+  for (const [k, val] of [["Dependency manifests", inv.manifests.join(", ") || "None found"], ["Test files", String(inv.test_files)], ["CI files", inv.ci_files.join(", ") || "None found"]] as const) {
+    const lines = wrap(val, "F1", 8.5, CW - 130);
+    L.ensure(lines.length * 11 + 4);
+    d.text(M, L.y + 9, k, "F1", 8.5, C.muted);
+    lines.forEach((l, i) => d.text(M + 130, L.y + 9 + i * 11, l, "F1", 8.5, C.ink));
+    L.y += lines.length * 11 + 3;
+  }
+  L.sub("Recommended tools");
+  for (const t of inv.recommended_tools) {
+    L.ensure(15);
+    d.text(M + 6, L.y + 9, t.command, "F3", 7.5, C.ink);
+    d.textRight(M + CW - 6, L.y + 9, `${t.installed ? "Installed" : "Not installed"} · ${t.needs_network ? "needs network" : "offline"}`, "F1", 7.5, C.muted);
+    L.y += 15;
+    d.line(M, L.y - 2.5, M + CW, L.y - 2.5, C.rule, 0.3);
   }
 
-  L.footers();
-  return d.build({ title: `SaaS Security Audit — ${v.project}`, subject: `Security audit report for ${result.root}` });
+  L.footers(date);
+  return d.build({ title: `Security assessment — ${v.project}`, subject: `Static security review of ${result.root}` });
 }
