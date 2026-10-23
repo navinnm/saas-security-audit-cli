@@ -9,7 +9,8 @@ import { gateCounts, newState, scan, type Finding } from "./engine.js";
 import { buildResult, markdown, sortFindings, type Result } from "./report.js";
 import { SEVERITY_RANK } from "./rules.js";
 import { LiveScan } from "./ui/LiveScan.js";
-import { renderSummary } from "./ui/summary.js";
+import { createInterface } from "node:readline/promises";
+import { renderHidden, renderSummary } from "./ui/summary.js";
 import { c, gradient } from "./ui/theme.js";
 import { latestVersion, runUpdate, updateCheckEnabled, updateNotice, withDeadline } from "./update.js";
 
@@ -34,6 +35,7 @@ ${c.bold("Options")}
   --fail-on <level>                Exit 1 on an unsuppressed lead at/above: ${FAIL_ON.join(", ")}
   --baseline <file>                Previous JSON output; adds new/resolved/persisting comparison
   --no-animation                   Skip the live scanner panel
+  --include-tests                  List findings in test files and gitignored env files without asking
   --no-update-check                Don't check npm for a newer version (also: SAAS_AUDIT_NO_UPDATE_CHECK=1)
   -v, --version                    Print the version
   -h, --help                       Show this help
@@ -67,7 +69,7 @@ async function main(): Promise<number> {
       options: {
         root: { type: "string" }, format: { type: "string" }, json: { type: "boolean" }, output: { type: "string" },
         "min-severity": { type: "string" }, "fail-on": { type: "string" }, baseline: { type: "string" },
-        "no-animation": { type: "boolean" }, "no-update-check": { type: "boolean" }, "dry-run": { type: "boolean" }, help: { type: "boolean", short: "h" }, version: { type: "boolean", short: "v" },
+        "no-animation": { type: "boolean" }, "no-update-check": { type: "boolean" }, "include-tests": { type: "boolean" }, "dry-run": { type: "boolean" }, help: { type: "boolean", short: "h" }, version: { type: "boolean", short: "v" },
       },
     });
   } catch (err) {
@@ -110,7 +112,7 @@ async function main(): Promise<number> {
 
   if (format === "pretty" && interactive) {
     const app = render(
-      <LiveScan version={pkg.version} target={displayTarget(root)} run={async (ev) => { findings = await scan(root, state, { ...ev, onDiscover: (n) => { filesWalked = n; ev.onDiscover?.(n); } }); }} />,
+      <LiveScan version={pkg.version} target={displayTarget(root)} includeTests={Boolean(a["include-tests"])} run={async (ev) => { findings = await scan(root, state, { ...ev, onDiscover: (n) => { filesWalked = n; ev.onDiscover?.(n); } }); }} />,
       { patchConsole: false },
     );
     await app.waitUntilExit();
@@ -129,8 +131,17 @@ async function main(): Promise<number> {
   }
   if (format === "json") process.stdout.write(JSON.stringify(result, null, 2) + "\n");
   else if (format === "markdown") { if (!a.output) process.stdout.write(markdown(result) + "\n"); }
-  else process.stdout.write(renderSummary(result, { elapsedMs: Date.now() - started, columns: process.stdout.columns,
-    outputPath: a.output ? tildify(resolve(a.output)) : undefined, filesWalked }) + "\n");
+  else {
+    // Test-file findings are collapsed by default; in an interactive terminal the user is asked whether to see them.
+    const canPrompt = interactive && Boolean(process.stdin.isTTY) && !a["include-tests"];
+    const { text, hidden } = renderSummary(result, { elapsedMs: Date.now() - started, columns: process.stdout.columns,
+      outputPath: a.output ? tildify(resolve(a.output)) : undefined, filesWalked,
+      includeTests: Boolean(a["include-tests"]), willPrompt: canPrompt });
+    process.stdout.write(text + "\n");
+    if (hidden.length && canPrompt && await confirm(`  Show ${hidden.length} findings from test files and local env files? ${c.gray("(y/N)")} `)) {
+      process.stdout.write(renderHidden(hidden, process.stdout.columns) + "\n");
+    }
+  }
   if (updateCheck) {
     const notice = updateNotice(pkg.version, await withDeadline(updateCheck, 400));
     if (notice) process.stdout.write(notice + "\n");
@@ -141,6 +152,17 @@ async function main(): Promise<number> {
     if (findings.some((f) => gateCounts(f) && SEVERITY_RANK[f.severity] >= threshold)) return 1;
   }
   return 0;
+}
+
+async function confirm(question: string): Promise<boolean> {
+  const rl = createInterface({ input: process.stdin, output: process.stdout });
+  try {
+    return /^y(es)?$/i.test((await rl.question(question)).trim());
+  } catch {
+    return false;
+  } finally {
+    rl.close();
+  }
 }
 
 function capitalize(s: string): string {

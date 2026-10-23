@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from "react";
 import { Box, Text, useApp, useStdout } from "ink";
 import type { Finding, ScanEvents } from "../engine.js";
 import { AMBER, BEAM, GROUPS, SEV_INK, SEV_SHORT, groupOf, hex, lerpRgb } from "./theme.js";
+import { shownByDefault } from "./summary.js";
 
 type Phase = "discover" | "scan" | "analyze" | "done";
 
@@ -12,6 +13,8 @@ export interface LiveScanProps {
   run(events: ScanEvents): Promise<void>;
   /** Minimum time the animation stays on screen, so fast scans are still readable. */
   minMs?: number;
+  /** Count and show findings in test files / local env files too (otherwise source code only). */
+  includeTests?: boolean;
 }
 
 const FRAME_MS = 70;
@@ -58,7 +61,7 @@ function Bar({ fraction, width }: { fraction: number; width: number }) {
 
 const truncLeft = (s: string, n: number) => (s.length <= n ? s : "…" + s.slice(s.length - n + 1));
 
-export function LiveScan({ version, target, run, minMs = 1400 }: LiveScanProps) {
+export function LiveScan({ version, target, run, minMs = 1400, includeTests = false }: LiveScanProps) {
   const { exit } = useApp();
   const { stdout } = useStdout();
   const cols = Math.max(50, Math.min(stdout?.columns ?? 80, 100));
@@ -81,6 +84,7 @@ export function LiveScan({ version, target, run, minMs = 1400 }: LiveScanProps) 
       onDiscover: (n) => { total.current = n; },
       onFile: (rel, i) => { current.current = rel; index.current = i + 1; },
       onFinding: (f) => {
+        if (!includeTests && !shownByDefault(f)) return;
         const g = groupOf(f.controls[0]);
         if (g >= 0) groupCounts.current[g]++;
         feed.current = [f, ...feed.current].slice(0, 4);
