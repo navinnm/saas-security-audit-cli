@@ -2347,7 +2347,14 @@
   "SEC048": "Request input reaches raw SQL, a shell or eval (traced)",
   "SEC049": "Request input picks where the server fetches or redirects (traced)",
   "SEC050": "Dependency with a known vulnerability",
-  "SEC051": "Dependency a major version or more behind"
+  "SEC051": "Dependency a major version or more behind",
+  "SEC052": "Container runs as root",
+  "SEC053": "Secret baked into an image, manifest or compose file",
+  "SEC054": "Image or CI action not pinned",
+  "SEC055": "Cloud resource open to the whole internet",
+  "SEC056": "Database reachable or without real authentication",
+  "SEC057": "CI workflow runs untrusted code or text with secrets",
+  "SEC058": "Privileged container or host access"
  },
  "standards": {
   "SEC001": {
@@ -2836,6 +2843,79 @@
     "CWE-1104"
    ],
    "kind": "components"
+  },
+  "SEC052": {
+   "owasp": "A05",
+   "api": [
+    "API8"
+   ],
+   "llm": [],
+   "cwe": [
+    "CWE-250"
+   ],
+   "kind": "config"
+  },
+  "SEC053": {
+   "owasp": "A07",
+   "api": [],
+   "llm": [],
+   "cwe": [
+    "CWE-798"
+   ],
+   "kind": "secrets"
+  },
+  "SEC054": {
+   "owasp": "A08",
+   "api": [],
+   "llm": [],
+   "cwe": [
+    "CWE-829"
+   ],
+   "kind": "components"
+  },
+  "SEC055": {
+   "owasp": "A05",
+   "api": [
+    "API8"
+   ],
+   "llm": [],
+   "cwe": [
+    "CWE-284"
+   ],
+   "kind": "config"
+  },
+  "SEC056": {
+   "owasp": "A05",
+   "api": [
+    "API8"
+   ],
+   "llm": [],
+   "cwe": [
+    "CWE-1188",
+    "CWE-306"
+   ],
+   "kind": "config"
+  },
+  "SEC057": {
+   "owasp": "A08",
+   "api": [],
+   "llm": [],
+   "cwe": [
+    "CWE-829",
+    "CWE-78"
+   ],
+   "kind": "integrity"
+  },
+  "SEC058": {
+   "owasp": "A05",
+   "api": [
+    "API8"
+   ],
+   "llm": [],
+   "cwe": [
+    "CWE-250"
+   ],
+   "kind": "config"
   }
  },
  "owasp_top10": {
@@ -2914,7 +2994,10 @@
   "CWE-1426": "Improper Validation of Generative AI Output",
   "CWE-1427": "Improper Neutralization of Input Used for LLM Prompting",
   "CWE-306": "Missing Authentication for Critical Function",
-  "CWE-1395": "Dependency on Vulnerable Third-Party Component"
+  "CWE-1395": "Dependency on Vulnerable Third-Party Component",
+  "CWE-250": "Execution with Unnecessary Privileges",
+  "CWE-829": "Inclusion of Functionality from Untrusted Control Sphere",
+  "CWE-1188": "Initialization of a Resource with an Insecure Default"
  },
  "cwe_top25_2024": [
   "CWE-20",

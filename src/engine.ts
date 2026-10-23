@@ -8,6 +8,7 @@ import { join } from "node:path";
 import { standardsFor, type FindingStandards } from "./standards.js";
 import { analyzeFlows, FLOW_EXTS, type FlowFile } from "./flow.js";
 import { checkDependencies, type DepStatus } from "./deps.js";
+import { analyzeInfra } from "./infra.js";
 import {
   R, RULES, SECRET_FORMATS, RE, CONTROL_SIGNALS, SECRET_GUIDANCE, SKIP_DIRS, CODE_EXTS, CONFIG_EXTS,
   SQL_EXTS, DOC_EXTS, CONFIG_NAMES, LOCKFILES,
@@ -467,7 +468,23 @@ export async function scan(root: string, state: ScanState = newState(), ev: Scan
   }
   const rlsApp = supabase || Object.keys(state.packages).some((p) => p.startsWith("@supabase/"));
   analyzeSchemaFiles(schemaFiles, rlsApp).forEach(emit);
-  // Dependencies: known vulnerabilities (OSV.dev) and major versions behind (npm registry).
+  // Architecture: Dockerfiles, compose, Kubernetes, CI workflows, Terraform, database configs.
+  if (!opts.signal?.aborted) {
+    const cache = new Map<string, string[]>();
+    for (const h of analyzeInfra(root, files.map((f) => f.rel).filter((r) => !RE.testPath.test(r)))) {
+      if (!cache.has(h.rel)) cache.set(h.rel, readLines(join(root, h.rel)) ?? []);
+      const src = cache.get(h.rel)!;
+      const at = src[h.line - 1] ?? "";
+      const f = makeFinding(h.id, h.title, h.severity, h.confidence, h.controls, h.rel, h.line, redact(at), h.guidance, "source");
+      const sup = RE.suppress.exec(at) ?? (h.line > 1 ? RE.suppress.exec(src[h.line - 2] ?? "") : null);
+      const ids = sup ? (sup.groups?.ids ?? "").split(",").map(pyStrip).filter(Boolean) : [];
+      if (sup && (!ids.length || ids.includes(h.id))) {
+        f.suppressed = pyStrip(sup.groups?.reason ?? "") || "no reason given";
+        state.suppressed.push(f);
+      } else emit(f);
+    }
+  }
+  // Dependencies: known vulnerabilities (OSV.dev) and major versions behind (each registry).
   if (opts.offline || process.env.SAAS_AUDIT_OFFLINE === "1") state.deps = { skipped: "offline" };
   else if (!opts.signal?.aborted) {
     try {

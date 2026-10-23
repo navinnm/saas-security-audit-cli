@@ -40,6 +40,11 @@ For JavaScript and TypeScript it also **reads the code as code**, not line by li
 | `prisma.user.update({ data: await req.json() })`, `{ ...body, }` into a write | Mass assignment (traced) |
 | `data: { userId: formData.get("userId"), price: body.price }` | Owner or price from the browser (traced) |
 | `$queryRawUnsafe` / `exec` / `eval` / `fetch` / `redirect` fed by `req.json()`, `searchParams`, route params | Injection, SSRF, open redirect (traced) |
+| Dockerfile without `USER`, `ENV STRIPE_SECRET_KEY=…`, `COPY .env`, `FROM node` (no version) | Containers |
+| compose `"5432:5432"` with `POSTGRES_PASSWORD: postgres`, `POSTGRES_HOST_AUTH_METHOD: trust`, Redis without a password, docker.sock mounted | Databases & compose |
+| Kubernetes `privileged: true`, `hostNetwork`, `runAsUser: 0`, a committed `kind: Secret` | Kubernetes |
+| `pull_request_target` that checks out the PR's code, `${{ github.event.pull_request.title }}` in `run:`, unpinned third-party actions | CI supply chain |
+| Terraform security group `0.0.0.0/0` on 5432/22, `publicly_accessible = true`, unencrypted RDS; `pg_hba.conf` trust, open `mongod.conf` / `redis.conf` | Cloud & database config |
 | `next@14.1.0`: CVE-2025-29927, fixed in 14.2.25 · `Django==3.2.0`: 38 CVEs · `laravel/framework` v8 · `gin` 1.6.0 · Go 1.20 standard library | Vulnerable and outdated dependencies (OSV.dev) |
 | Supabase `service_role` key in a `NEXT_PUBLIC_` env variable | Secrets |
 | `create table public.invoices` with no `ENABLE ROW LEVEL SECURITY` | Tenant isolation / RLS |
