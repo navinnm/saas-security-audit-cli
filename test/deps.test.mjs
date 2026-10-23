@@ -96,3 +96,78 @@ test("no network: reported, never fatal", async () => {
     rmSync(root, { recursive: true, force: true });
   }
 });
+
+const ECOSYSTEMS = {
+  // PHP
+  "composer.json": JSON.stringify({ require: { "laravel/framework": "^10.0", php: "^8.2" }, "require-dev": { "phpunit/phpunit": "^10" } }, null, 2),
+  "composer.lock": JSON.stringify({ packages: [{ name: "laravel/framework", version: "v10.1.0" }, { name: "guzzlehttp/psr7", version: "2.4.0" }],
+    "packages-dev": [{ name: "phpunit/phpunit", version: "10.0.0" }] }, null, 2),
+  // Python: PEP 621 + Poetry lock, uv lock, Pipfile, requirements
+  "api/pyproject.toml": '[project]\nname = "api"\ndependencies = ["django>=4.2", "requests[socks]==2.25.0"]\n',
+  "api/poetry.lock": '[[package]]\nname = "Django"\nversion = "4.2.1"\ncategory = "main"\n\n[[package]]\nname = "requests"\nversion = "2.25.0"\n\n[[package]]\nname = "urllib3"\nversion = "1.26.4"\n',
+  "worker/uv.lock": 'version = 1\n\n[[package]]\nname = "worker"\nversion = "0.1.0"\nsource = { editable = "." }\n\n[[package]]\nname = "celery"\nversion = "5.3.0"\nsource = { registry = "https://pypi.org/simple" }\n',
+  "ml/Pipfile": '[packages]\nnumpy = "*"\n\n[dev-packages]\npytest = "*"\n',
+  "ml/Pipfile.lock": JSON.stringify({ default: { numpy: { version: "==1.24.0" } }, develop: { pytest: { version: "==7.0.0" } } }),
+  "scripts/requirements.txt": "# tools\nflask==2.0.1  # web\nJinja2[i18n]==3.0.0 ; python_version >= '3.8'\nclick>=8\n",
+  // Go, with the toolchain version
+  "svc/go.mod": "module example.com/svc\n\ngo 1.21.3\n\nrequire (\n\tgithub.com/gin-gonic/gin v1.9.0\n\tgolang.org/x/net v0.10.0 // indirect\n)\n\nrequire github.com/google/uuid v1.3.0\n",
+  // Ruby
+  "web/Gemfile": "source 'https://rubygems.org'\ngem 'rails', '~> 7.0'\n",
+  "web/Gemfile.lock": "GEM\n  remote: https://rubygems.org/\n  specs:\n    nokogiri (1.15.0-x86_64-linux)\n      racc (~> 1.4)\n    rails (7.0.4)\n\nPLATFORMS\n  x86_64-linux\n\nDEPENDENCIES\n  rails (~> 7.0)\n",
+  // Rust
+  "rs/Cargo.toml": '[package]\nname = "rs"\n\n[dependencies]\ntokio = "1"\n',
+  "rs/Cargo.lock": '[[package]]\nname = "rs"\nversion = "0.1.0"\n\n[[package]]\nname = "tokio"\nversion = "1.20.0"\nsource = "registry+https://github.com/rust-lang/crates.io-index"\n',
+  // .NET
+  "dotnet/packages.lock.json": JSON.stringify({ version: 1, dependencies: { "net8.0": { "Newtonsoft.Json": { type: "Direct", resolved: "12.0.1" }, "System.Text.Json": { type: "Transitive", resolved: "6.0.0" } } } }),
+  "dotnet2/App.csproj": '<Project><ItemGroup><PackageReference Include="Serilog" Version="2.10.0" /></ItemGroup></Project>',
+  // Java
+  "java/pom.xml": "<project><properties><jackson.version>2.13.0</jackson.version></properties><dependencies><dependency><groupId>com.fasterxml.jackson.core</groupId><artifactId>jackson-databind</artifactId><version>${jackson.version}</version></dependency><dependency><groupId>junit</groupId><artifactId>junit</artifactId><version>4.12</version><scope>test</scope></dependency></dependencies></project>",
+  "kt/gradle.lockfile": "org.apache.logging.log4j:log4j-core:2.14.1=runtimeClasspath\nempty=\n",
+  // Dart
+  "app/pubspec.lock": 'packages:\n  http:\n    dependency: "direct main"\n    description:\n      name: http\n    source: hosted\n    version: "0.13.0"\n  meta:\n    dependency: transitive\n    source: hosted\n    version: "1.8.0"\n',
+};
+
+test("reads Composer, Python, Go, Ruby, Rust, .NET, Java and Dart dependencies", () => {
+  const root = repo(ECOSYSTEMS);
+  try {
+    const { packages, lockfiles } = lockedPackages(root, Object.keys(ECOSYSTEMS));
+    const got = new Set(packages.map((p) => `${p.ecosystem} ${p.name}@${p.version}${p.direct ? "*" : ""}${p.dev ? " dev" : ""}`));
+    for (const want of [
+      "Packagist laravel/framework@10.1.0*", "Packagist guzzlehttp/psr7@2.4.0", "Packagist phpunit/phpunit@10.0.0* dev",
+      "PyPI Django@4.2.1*", "PyPI requests@2.25.0*", "PyPI urllib3@1.26.4", "PyPI celery@5.3.0",
+      "PyPI numpy@1.24.0*", "PyPI pytest@7.0.0* dev", "PyPI flask@2.0.1*", "PyPI Jinja2@3.0.0*",
+      "Go stdlib@1.21.3*", "Go github.com/gin-gonic/gin@1.9.0*", "Go golang.org/x/net@0.10.0", "Go github.com/google/uuid@1.3.0*",
+      "RubyGems nokogiri@1.15.0", "RubyGems rails@7.0.4*", "crates.io tokio@1.20.0*",
+      "NuGet Newtonsoft.Json@12.0.1*", "NuGet System.Text.Json@6.0.0", "NuGet Serilog@2.10.0*",
+      "Maven com.fasterxml.jackson.core:jackson-databind@2.13.0*", "Maven junit:junit@4.12* dev", "Maven org.apache.logging.log4j:log4j-core@2.14.1",
+      "Pub http@0.13.0*", "Pub meta@1.8.0",
+    ]) assert.ok(got.has(want), `missing ${want}\n${[...got].join("\n")}`);
+    assert.ok(![...got].some((g) => /\b(?:worker|rs)@0\.1\.0/.test(g)), "the project's own package is not a dependency");
+    assert.ok(![...got].some((g) => g.includes("click")), "unpinned requirement (click>=8) is not a version");
+    assert.equal(lockfiles.length, 13);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("each package is asked about under its own OSV ecosystem", async () => {
+  const root = repo(ECOSYSTEMS);
+  let batch;
+  try {
+    const { hits } = await checkDependencies(root, Object.keys(ECOSYSTEMS), { maxLatestLookups: 0, fetch: async (url, init) => {
+      if (url.endsWith("/querybatch")) {
+        batch = JSON.parse(init.body).queries;
+        return { ok: true, status: 200, json: async () => ({ results: batch.map((q) => ({ vulns: q.package.name === "guzzlehttp/psr7" ? [{ id: "GHSA-wxmh-65f7-jcvw" }] : [] })) }) };
+      }
+      return { ok: true, status: 200, json: async () => ({ id: "GHSA-wxmh-65f7-jcvw", aliases: ["CVE-2023-29197"], summary: "Improper header validation", published: "2023-04-17T00:00:00Z",
+        database_specific: { severity: "MODERATE" }, affected: [{ package: { ecosystem: "Packagist", name: "guzzlehttp/psr7" }, ranges: [{ events: [{ introduced: "2.0.0" }, { fixed: "2.4.5" }] }] }] }) };
+    } });
+    const eco = new Set(batch.map((q) => q.package.ecosystem));
+    for (const e of ["npm", "PyPI", "Go", "RubyGems", "Packagist", "crates.io", "NuGet", "Maven", "Pub"].filter((x) => x !== "npm")) assert.ok(eco.has(e), `no ${e} query`);
+    const guzzle = hits.find((h) => h.title.startsWith("guzzlehttp/psr7@2.4.0"));
+    assert.equal(guzzle.severity, "Medium");
+    assert.match(guzzle.evidence, /\(Packagist, indirect\): CVE-2023-29197 \(2023-04-17\) · fixed in 2\.4\.5/);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});

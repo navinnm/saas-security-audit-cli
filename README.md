@@ -40,7 +40,7 @@ For JavaScript and TypeScript it also **reads the code as code**, not line by li
 | `prisma.user.update({ data: await req.json() })`, `{ ...body, }` into a write | Mass assignment (traced) |
 | `data: { userId: formData.get("userId"), price: body.price }` | Owner or price from the browser (traced) |
 | `$queryRawUnsafe` / `exec` / `eval` / `fetch` / `redirect` fed by `req.json()`, `searchParams`, route params | Injection, SSRF, open redirect (traced) |
-| `next@14.1.0` in your lockfile: CVE-2025-29927 (2025-03-21), fixed in 14.2.25; `prisma` two majors behind | Vulnerable and outdated dependencies (OSV.dev) |
+| `next@14.1.0`: CVE-2025-29927, fixed in 14.2.25 · `Django==3.2.0`: 38 CVEs · `laravel/framework` v8 · `gin` 1.6.0 · Go 1.20 standard library | Vulnerable and outdated dependencies (OSV.dev) |
 | Supabase `service_role` key in a `NEXT_PUBLIC_` env variable | Secrets |
 | `create table public.invoices` with no `ENABLE ROW LEVEL SECURITY` | Tenant isolation / RLS |
 | RLS policy `USING (true)`, Drizzle tables without RLS, Prisma models with no tenant key | Tenant isolation |
@@ -153,7 +153,7 @@ The plugin's scanner gives Claude its starting leads; the CLI started from the s
 ## Privacy
 
 - The scan runs on your machine, never executes your code, and has no telemetry. Your code never leaves the machine.
-- **Dependency check:** every scan sends the **names and versions** of the packages in your lockfiles (package-lock.json, pnpm-lock.yaml, yarn.lock) to [OSV.dev](https://osv.dev) to look up known vulnerabilities, and the names of your direct dependencies to `registry.npmjs.org` for their latest version. Nothing else is sent. Turn it off with `--offline` or `SAAS_AUDIT_OFFLINE=1`; without network the scan continues and the report says the check was skipped.
+- **Dependency check:** every scan sends the **names and versions** of the packages your project pins to [OSV.dev](https://osv.dev) to look up known vulnerabilities, and the names of your direct dependencies to their public registry (npm, PyPI, RubyGems, crates.io, Packagist, the Go module proxy, NuGet, Maven Central, pub.dev) for their latest version. Read from: package-lock.json, pnpm-lock.yaml, yarn.lock · poetry.lock, uv.lock, pdm.lock, Pipfile.lock, requirements*.txt · go.mod · Gemfile.lock · composer.lock · Cargo.lock · packages.lock.json, *.csproj · pom.xml, gradle.lockfile, build.gradle · pubspec.lock. Nothing else is sent. Turn it off with `--offline` or `SAAS_AUDIT_OFFLINE=1`; without network the scan continues and the report says the check was skipped.
 - **Test files and gitignored local env files** (`.env.local`, `.env.*.local`) are not read by default: they don't ship. A `.env` that is *not* gitignored is still read and reported. `--include-tests` reads them.
 - **Update check:** in an interactive terminal, the CLI asks the public npm registry (`registry.npmjs.org`) at most once a day whether a newer version exists. That request contains only the package name; nothing about your code or findings. It never runs in CI, when output is piped, or with `--json`/`--format markdown`. Turn it off with `--no-update-check`, `SAAS_AUDIT_NO_UPDATE_CHECK=1`, or `NO_UPDATE_NOTIFIER=1`. `saas-audit update` contacts the registry only when you run it.
 - Secret values are redacted in every output.

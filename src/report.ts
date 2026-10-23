@@ -129,7 +129,7 @@ export function depsLine(d: Result["dependencies"]): string {
   if (!d) return "not checked";
   if ("skipped" in d) return d.skipped === "offline" ? "not checked (offline)" : d.skipped;
   if (!d.packages) return "no lockfile found (package-lock.json, pnpm-lock.yaml or yarn.lock)";
-  return `${d.packages} packages from ${d.lockfiles.join(", ")} checked against OSV.dev on ${d.checked_at.slice(0, 10)}: ` +
+  return `${d.packages} packages (${(d.ecosystems ?? []).join(", ")}) from ${d.lockfiles.join(", ")} checked against OSV.dev on ${d.checked_at.slice(0, 10)}: ` +
     `${d.vulnerable} with known vulnerabilities (${d.advisories} advisories), ${d.outdated} direct dependencies a major version or more behind` +
     (d.error ? ` (incomplete: ${d.error})` : "");
 }
