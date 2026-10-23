@@ -1,5 +1,6 @@
-// Parity: the npm scanner must produce exactly what the plugin's Python scanner produces.
-// Skipped automatically when python3 or the plugin checkout is unavailable (e.g. on npm CI).
+// Parity with the Claude Code plugin's Python scanner (scripts/scan.py 0.4.0). Since rules 0.5.0 the CLI
+// is its own source of truth and goes further (fewer false positives, code-flow analysis), so this only
+// runs on request: SAAS_AUDIT_PARITY=1 npm test.
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { execFileSync, spawnSync } from "node:child_process";
@@ -13,7 +14,8 @@ const here = dirname(fileURLToPath(import.meta.url));
 const CLI = resolve(here, "../dist/cli.js");
 const PLUGIN = process.env.SAAS_AUDIT_PLUGIN ?? resolve(here, "../../saas-security-audit/scripts/scan.py");
 const havePython = spawnSync("python3", ["--version"]).status === 0;
-const skip = !havePython || !existsSync(PLUGIN) ? "python3 or plugin scan.py not available" : false;
+const skip = process.env.SAAS_AUDIT_PARITY !== "1" ? "CLI ahead of the plugin; set SAAS_AUDIT_PARITY=1 to compare"
+  : !havePython || !existsSync(PLUGIN) ? "python3 or plugin scan.py not available" : false;
 
 function py(root, ...args) {
   const r = spawnSync("python3", ["-I", PLUGIN, "--root", root, ...args], { encoding: "utf8" });

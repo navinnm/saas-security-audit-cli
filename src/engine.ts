@@ -134,12 +134,17 @@ export function jwtRole(payload: string): unknown {
   }
 }
 
+const ENV_CRED_D = new RegExp(RE.envCred.source, RE.envCred.flags + "d");
+
 export function redact(line: string): string {
   for (const fmt of SECRET_FORMATS) {
     line = fmt.groups.has("v") ? subWithGroup(fmt.re, line, "v", true) : line.replace(fmt.re, "[REDACTED_TOKEN]");
   }
   line = subWithGroup(RE.quotedCredAll, line, "v", true);
-  line = subWithGroup(RE.envCredAll, line, "v", false);
+  // KEY=value lines: hide everything after the "=", not only up to the first space
+  // (a ZeptoMail token is "Zoho-enczapikey <key>": the key itself comes after the space).
+  const env = ENV_CRED_D.exec(line)?.indices?.groups?.v;
+  if (env) line = line.slice(0, env[0]) + "[REDACTED]";
   line = line.replace(RE.bearerAll, "Bearer [REDACTED]");
   return cpSlice(pyStrip(line), 240);
 }
@@ -257,10 +262,19 @@ function recordPackages(name: string, lines: string[], packages: ScanState["pack
   }
 }
 
-/** os.walk(top-down, followlinks=False) order: files of a directory, then its subdirectories, both sorted. */
+/**
+ * os.walk(top-down, followlinks=False) order: files of a directory, then its subdirectories, both sorted.
+ * Folders that a .gitignore (the root one or one further down) leaves out are skipped: build output,
+ * generated clients and bundles are not the app's own source. Ignored files are still read (env files).
+ */
 function walk(root: string): WalkedFile[] {
   const out: { abs: string; rel: string; name: string }[] = [];
+  const ignores: { base: string; pats: string[] }[] = [];
+  const dirIgnored = (rel: string) => ignores.some(({ base, pats }) =>
+    (base === "" || rel.startsWith(base + "/")) && isIgnored(base ? rel.slice(base.length + 1) : rel, pats));
   const visit = (dir: string, relDir: string) => {
+    const pats = parseGitignore(dir);
+    if (pats.length) ignores.push({ base: relDir, pats });
     let entries;
     try {
       entries = readdirSync(dir, { withFileTypes: true });
@@ -272,7 +286,7 @@ function walk(root: string): WalkedFile[] {
     for (const e of entries) {
       if (e.isSymbolicLink()) continue;
       if (e.isDirectory()) {
-        if (!SKIP_DIRS.has(e.name)) dirs.push(e.name);
+        if (!SKIP_DIRS.has(e.name) && !dirIgnored(relDir ? `${relDir}/${e.name}` : e.name)) dirs.push(e.name);
       } else if (e.isFile()) files.push(e.name);
     }
     const cmp = (a: string, b: string) => (a < b ? -1 : a > b ? 1 : 0);
@@ -448,7 +462,9 @@ export async function scan(root: string, state: ScanState = newState(), ev: Scan
   for (const d of [...manifestDirs.keys()].sort((a, b) => (a < b ? -1 : a > b ? 1 : 0))) {
     const present = manifestDirs.get(d)!;
     for (const [manifest, locks] of Object.entries(R.lock_for)) {
-      if (present.has(manifest) && !locks.some((l) => existsSync(join(root, d, l)))) {
+      // Workspaces (pnpm, yarn, npm) keep one lockfile at the top: a lockfile in any parent folder counts.
+      const up = d ? d.split("/").map((_, k, parts) => parts.slice(0, parts.length - k).join("/")).concat("") : [""];
+      if (present.has(manifest) && !up.some((dir) => locks.some((l) => existsSync(join(root, dir, l))))) {
         const rel = d ? `${d}/${manifest}` : manifest;
         if (RE.testPath.test(rel)) continue;
         emit(makeFinding("SEC033", "Dependency manifest without a lockfile", "Low", "medium", [15], rel, 1,
@@ -477,6 +493,8 @@ function analyzeSchemaFiles(files: [string, string, string[], boolean][], rlsApp
   const drizzle: [string, string, number, boolean, string, string][] = [];
   let drizzleRlsUsed = false;
   const prisma: [string, string, number, boolean, string][] = [];
+  /** Model → the models its relation fields point at (`run Run @relation(...)`). */
+  const parents = new Map<string, Set<string>>();
 
   for (const [rel, ext, lines, inTest] of files) {
     const context = inTest ? "test" : "source";
@@ -496,6 +514,14 @@ function analyzeSchemaFiles(files: [string, string, string[], boolean][], rlsApp
         else if (current) {
           if (pyStrip(line) === "}") { prisma.push(current); current = null; }
           else if (RE.tenantField.test(line)) current[3] = true;
+          else {
+            const rel2 = /^\s*\w+\s+(\w+)\??\s[^\n]*@relation\b/.exec(line);
+            if (rel2) {
+              const own = current[0];
+              if (!parents.has(own)) parents.set(own, new Set());
+              parents.get(own)!.add(rel2[1]);
+            }
+          }
         }
       });
     } else {
@@ -541,8 +567,17 @@ function analyzeSchemaFiles(files: [string, string, string[], boolean][], rlsApp
   }
   const tenantModels = prisma.filter((m) => m[3]);
   if (tenantModels.length >= 2) {
+    // A model reached through a tenant-scoped (or global) parent is scoped by that parent:
+    // PageResult → Run (workspaceId), FeedbackMessage → Feedback. Followed transitively.
+    const scoped = new Set(prisma.filter((m) => m[3] || RE.prismaGlobal.test(m[0])).map((m) => m[0]));
+    for (let grew = true; grew;) {
+      grew = false;
+      for (const [name] of prisma) {
+        if (!scoped.has(name) && [...(parents.get(name) ?? [])].some((p) => scoped.has(p))) { scoped.add(name); grew = true; }
+      }
+    }
     for (const [name, rel, number, hasTenant, context] of prisma) {
-      if (!hasTenant && !RE.prismaGlobal.test(name)) {
+      if (!hasTenant && !scoped.has(name)) {
         findings.push(makeFinding("SEC039", `Prisma model '${name}' has no tenant key`, "Informational", "low", [1, 9], rel, number,
           `model ${name} lacks a tenant/org field while ${tenantModels.length} models have one`,
           "Confirm this model is global or always reached through a tenant-scoped parent; otherwise add a tenant key " +

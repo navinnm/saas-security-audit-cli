@@ -54,6 +54,41 @@ test("secrets are detected and never echoed", async () => {
   });
 });
 
+test("a KEY=value secret is hidden up to the end of the line, spaces included", async () => {
+  const key = "wSs" + "Q9xk2LmPz4TfRbVu7HnYc3JdEgA1";
+  await withRepo({ ".env": `ZEPTOMAIL_TOKEN=Zoho-enczapikey ${key}\n`, ".gitignore": "x\n" }, async (root) => {
+    const all = JSON.stringify(await scan(root));
+    assert.ok(all.includes("ZEPTOMAIL_TOKEN=[REDACTED]"));
+    assert.ok(!all.includes(key.slice(0, 8)), "the part after the space leaked");
+  });
+});
+
+test("common false positives stay quiet, real ones still fire", async () => {
+  await withRepo({
+    "a.ts": [
+      "const rows = await prisma.$queryRaw<{ id: string }[]>`SELECT id FROM t WHERE a = ${b}`;",
+      "<script dangerouslySetInnerHTML={{ __html: JSON.stringify(ld).replace(/</g, '\\\\u003c') }} />",
+      "el.innerHTML = '';",
+      "const [a, b] = await Promise.all([db.workspace.findUnique({ select: { slackWebhook: true } })]);",
+      "<input autoComplete={login ? 'current-password' : 'new-password'} />",
+    ].join("\n") + "\n",
+    "bad.ts": "db.run(`SELECT * FROM t WHERE id = ${id}`);\nel.innerHTML = userBio;\n<div dangerouslySetInnerHTML={{ __html: bio }} />\n",
+    "app/api/webhooks/pay/route.ts": "export async function POST(req) { const e = pay.webhooks.unwrap(await req.text(), { headers: { 'webhook-id': req.headers.get('webhook-id') } }); }\n",
+    "packages/x/package.json": "{}", "pnpm-lock.yaml": "", "package.json": "{}",
+    "packages/x/.gitignore": "bundle/\n", "packages/x/bundle/out.js": "eval(x)\n",
+    "schema.prisma": "model Run {\n  id String @id\n  workspaceId String\n}\nmodel Invoice {\n  id String @id\n  orgId String\n}\n" +
+      "model PageResult {\n  id String @id\n  run Run @relation(fields: [runId], references: [id])\n}\nmodel Orphan {\n  id String @id\n}\n",
+  }, async (root) => {
+    const found = await scan(root);
+    assert.deepEqual(ids(found, "a.ts"), []);
+    assert.deepEqual(ids(found, "bad.ts").sort(), ["SEC003", "SEC015", "SEC015"]);
+    assert.deepEqual(ids(found, "app/api/webhooks/pay/route.ts"), [], "unwrap verifies, webhook-id dedups");
+    assert.deepEqual(found.filter((f) => f.id === "SEC033"), [], "workspace lockfile at the root counts");
+    assert.ok(!found.some((f) => f.file.includes("bundle/")), "gitignored build folder skipped");
+    assert.deepEqual(found.filter((f) => f.id === "SEC039").map((f) => f.title), ["Prisma model 'Orphan' has no tenant key"]);
+  });
+});
+
 test("parameterized and tagged queries are clean", async () => {
   await withRepo({ "a.py": 'cur.execute("SELECT * FROM t WHERE id = %s", (uid,))\n',
     "b.ts": "await prisma.$queryRaw`SELECT * FROM t WHERE id = ${id}`;\n" }, async (root) => {

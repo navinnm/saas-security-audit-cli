@@ -1,6 +1,6 @@
 {
- "generated_from": "saas-security-audit plugin scripts/scan.py",
- "version": "0.4.0",
+ "generated_from": "saas-security-audit CLI (started from the plugin's scripts/scan.py 0.4.0; the CLI is now the source of truth)",
+ "version": "0.5.0",
  "schema_version": 3,
  "controls": [
   "Row-level security and tenant isolation",
@@ -389,7 +389,7 @@
      "exts": null
     },
     {
-     "source": "(?<![\\w$.])`[^`\\n]*\\b(?:SELECT|INSERT\\s+INTO|UPDATE|DELETE\\s+FROM)\\b[^`\\n]*\\$\\{",
+     "source": "(?<![\\w$.])(?<![^=]>)`[^`\\n]*\\b(?:SELECT|INSERT\\s+INTO|UPDATE|DELETE\\s+FROM)\\b[^`\\n]*\\$\\{",
      "flags": "",
      "exts": [
       ".cjs",
@@ -772,7 +772,7 @@
    "guidance": "Confirm the value is sanitized with a vetted HTML sanitizer or never user-controlled; prefer escaped rendering.",
    "patterns": [
     {
-     "source": "dangerouslySetInnerHTML",
+     "source": "dangerouslySetInnerHTML(?![^\\n]*JSON\\.stringify\\([^\\n]*\\\\u003c)",
      "flags": "",
      "exts": [
       ".cjs",
@@ -786,7 +786,7 @@
      ]
     },
     {
-     "source": "\\.(?:inner|outer)HTML\\s*=(?!=)",
+     "source": "\\.(?:inner|outer)HTML\\s*=(?!=)(?!\\s*(?:'[^'\\n]*'|\"[^\"\\n]*\")\\s*(?:;|$))",
      "flags": "",
      "exts": [
       ".cjs",
@@ -1879,7 +1879,7 @@
    "flags": "i"
   },
   "placeholder_re": {
-   "source": "^(?:x+|\\*+|\\.+|-+|0+|changeme|change_?me|changeit|password\\d*|secret|none|null|undefined|todo|tbd|redacted|(?:example|sample|dummy|placeholder|your|replace|test|fake|mock|insert|enter|my)[\\w.-]*|<[^>]*>|\\{\\{.*\\}\\}|\\$\\{.*\\}|%\\(.*\\)s|.*xxxx.*)$",
+   "source": "^(?:(?:new|current)-password|one-time-code|x+|\\*+|\\.+|-+|0+|changeme|change_?me|changeit|password\\d*|secret|none|null|undefined|todo|tbd|redacted|(?:example|sample|dummy|placeholder|your|replace|test|fake|mock|insert|enter|my)[\\w.-]*|<[^>]*>|\\{\\{.*\\}\\}|\\$\\{.*\\}|%\\(.*\\)s|.*xxxx.*)$",
    "flags": "i"
   },
   "local_host_re": {
@@ -1899,15 +1899,15 @@
    "flags": "i"
   },
   "webhook_route_re": {
-   "source": "(?:\\.(?:post|put|all|route)\\s*\\(|@\\w+\\.(?:post|route|api_route)|\\b(?:re_)?path\\s*\\(|Route::(?:post|any|match)|\\bpost\\s+[\\\"']|@PostMapping|@RequestMapping|HandleFunc)[^\\n]*webhook",
+   "source": "(?:(?<!Promise)\\.(?:post|put|all|route)\\s*\\(|@\\w+\\.(?:post|route|api_route)|\\b(?:re_)?path\\s*\\(|Route::(?:post|any|match)|\\bpost\\s+[\\\"']|@PostMapping|@RequestMapping|HandleFunc)[^\\n]*webhook",
    "flags": "i"
   },
   "webhook_verify_re": {
-   "source": "constructEvent|verifyHeader|validateRequest|verify_?signature|verifySignature|\\bhmac\\b|createHmac|timingSafeEqual|compare_digest|hash_equals|secure_compare|\\bsvix\\b|new\\s+Webhook\\s*\\(|webhooks?\\.verify|x-hub-signature|stripe-signature|x-slack-signature|x-signature",
+   "source": "constructEvent|verifyHeader|validateRequest|verify_?signature|verifySignature|\\bhmac\\b|createHmac|timingSafeEqual|compare_digest|hash_equals|secure_compare|\\bsvix\\b|new\\s+Webhook\\s*\\(|webhooks?\\.verify|x-hub-signature|stripe-signature|x-slack-signature|x-signature|webhooks?\\.unwrap|webhook-signature|standardwebhooks",
    "flags": "i"
   },
   "webhook_idempotency_re": {
-   "source": "idempoten|event\\.id\\b|event_id|eventId|already[_ ]processed|processed_events|dedup|on\\s+conflict",
+   "source": "idempoten|event\\.id\\b|event_id|eventId|already[_ ]processed|processed_events|dedup|on\\s+conflict|webhook-id|webhookId|svix-id",
    "flags": "i"
   },
   "create_table_re": {

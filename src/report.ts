@@ -93,7 +93,7 @@ export function buildResult(root: string, findings: Finding[], state: ScanState,
     limitations: [
       "Regex heuristics only; false positives and false negatives are expected.",
       "No control is automatically marked PASS; signals show where to look, not that a control is enforced.",
-      "Only the root .gitignore is parsed; git history and tracked-but-ignored files are not inspected.",
+      "Env files are judged by the root .gitignore; folders any .gitignore leaves out (build output, generated code) are skipped. Git history is not inspected.",
       "No network access or target-code execution; dependency CVEs require the recommended tools.",
     ],
   };
