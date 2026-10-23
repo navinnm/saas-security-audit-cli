@@ -114,14 +114,7 @@ export function welcomeScreen(i: WelcomeInfo): string[] {
     ["Controls", "22 across 6 areas"],
   ], 12))];
 
-  const chips: string[] = [];
-  let line = "";
-  for (const g of GROUPS) {
-    const chip = bg("#161B22", P.text, ` ${g.label} `);
-    if (vlen(line) + vlen(chip) + 2 > w - 4 && line) { chips.push(line); line = ""; }
-    line += (line ? "  " : "") + chip;
-  }
-  if (line) chips.push(line);
+  const checked = checkedGrid(w - 6);
 
   return [
     "",
@@ -132,9 +125,39 @@ export function welcomeScreen(i: WelcomeInfo): string[] {
     ...indent(columns(languageBlock(i.profile, half), folderBlock(i.profile, half), half), 2),
     "",
     ...indent(heading("What gets checked", w - 4, "6 areas · 22 controls"), 2),
-    ...indent(sub(chips), 2),
+    ...indent(sub(checked), 2),
     "",
   ];
+}
+
+/** What each area looks for, in plain words, for the welcome screen. */
+const AREA_DETAIL: Record<string, string> = {
+  "Secrets & dependencies": "leaked keys · env files · lockfiles",
+  "Tenant isolation & access": "RLS · route auth · IDOR · admin · sessions",
+  "Injection & input": "SQL · XSS · shell · deserialization",
+  "Transport & config": "CORS · cookies · TLS · headers · debug",
+  "Storage & webhooks": "public buckets · uploads · signatures",
+  "SSRF & AI / LLM": "outbound fetches · prompt injection",
+};
+
+/** WHAT GETS CHECKED: the six areas as an aligned two-column grid with control counts. */
+function checkedGrid(width: number): string[] {
+  const colW = Math.floor((width - 4) / 2);
+  const cell = (g: { label: string; controls: number[] }, k: number) => {
+    const count = `${g.controls.length} control${g.controls.length === 1 ? "" : "s"}`;
+    return [
+      spread(`${fg(rainbowAt(k / (GROUPS.length - 1)), "●")} ${bold(g.label)}`, c.muted(count), colW),
+      `  ${c.dim(fit(AREA_DETAIL[g.label] ?? "", colW - 2))}`,
+    ];
+  };
+  const out: string[] = [];
+  for (let k = 0; k < GROUPS.length; k += 2) {
+    const left = cell(GROUPS[k], k);
+    const right = GROUPS[k + 1] ? cell(GROUPS[k + 1], k + 1) : ["", ""];
+    if (out.length) out.push("");
+    out.push(...left.map((l, n) => padEnd(l, colW) + "    " + right[n]));
+  }
+  return out;
 }
 
 const ROLE_TEXT: Record<string, (s: string) => string> = {

@@ -6,6 +6,23 @@
 npx saas-security-audit
 ```
 
+## Quick start
+
+```bash
+npm i -g saas-security-audit                      # or run any command below with npx saas-security-audit
+
+cd your-app
+saas-audit                                        # interactive scan in the terminal
+saas-audit --output security-report.pdf           # also write a PDF report
+saas-audit --output report.pdf --output report.html   # PDF + HTML from one scan
+saas-audit ~/projects/other-app --output report.pdf   # scan another folder
+saas-audit --fail-on high --format github         # CI gate with pull-request annotations
+saas-audit show SEC031                            # every location and fix for one rule
+saas-audit update                                 # update to the latest version
+```
+
+The report format comes from the file extension: `.pdf`, `.html`, `.json` or `.md`. After the scan, the CLI offers to open the first report; add `--yes` to skip all prompts.
+
 ![saas-security-audit scanning a repository](https://raw.githubusercontent.com/navinnm/saas-security-audit-cli/main/docs/screenshot.png)
 
 ## Why
@@ -55,9 +72,9 @@ saas-audit update                    Update to the latest version
 
 ![Summary and verdict after a scan](https://raw.githubusercontent.com/navinnm/saas-security-audit-cli/main/docs/summary.png)
 
-1. **Welcome:** the target (project, path, detected stack, file count), the run settings, the six areas checked, and **"Start the scan now?"** (skip with `--yes`).
+1. **Welcome:** the target (project, path, detected stack, file count) and run settings, the languages and top-level folders with their roles (source, build output, tests, docs…), a two-column grid of the six areas checked (each with its control count and what it looks for), and **"Start the scan now?"** (skip with `--yes`).
 2. **Live scan:** an overall progress bar, a five-step pipeline (Discover → Classify → Analyse → Correlate → Report) with ETA, running severity counts, six area cards, and the latest critical and high findings as they're found. Press **Ctrl+C** to get "Stop the scan at 72%?"; the default is to keep going, and stopping keeps the partial results.
-3. **Summary & verdict:** a release verdict (blocked, high-risk, gate passed, or clean), counts, where the worst findings live (application source vs generated build output), the severity shape, a by-area breakdown with the rules driving it, and the 22-control coverage grid.
+3. **Summary & verdict:** a release verdict (blocked, high-risk, gate passed, or clean), counts, where the worst findings live (application source vs generated build output), the severity shape, a by-area breakdown with the rules driving it, a by-folder breakdown, and the 22-control coverage grid.
 4. **Findings by rule:** worst first, each with its locations as a tree and a `→` fix. Medium and low collapse into one table (`--all` expands them).
 5. **Fix order:** numbered actions (every critical, then the high-severity rules), the controls that still need manual review, next commands, and the exit code.
 
@@ -79,7 +96,7 @@ saas-audit --output security-report.pdf --output security-report.html
 
 ```yaml
 - name: SaaS security scan
-  run: npx saas-security-audit@0.5.2 --fail-on high --format github --output security-report.md
+  run: npx saas-security-audit@0.5.3 --fail-on high --format github --output security-report.md
 ```
 
 `--format github` adds inline annotations on the pull request (errors for critical and high, warnings for medium), followed by the plain-text summary.
