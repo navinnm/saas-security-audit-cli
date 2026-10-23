@@ -3,6 +3,7 @@ import { accessSync, constants } from "node:fs";
 import { delimiter, join } from "node:path";
 import { CONTROLS, R, RULE_TITLES, SCHEMA_VERSION, SEVERITY_RANK, VERSION } from "./rules.js";
 import type { Finding, ScanState } from "./engine.js";
+import { CLI_VERSION } from "./version.js";
 import { markdownStandards, standardsSummary, standardsTag, vibeSummary, type StandardsSummary, type VibeCheck } from "./standards.js";
 
 const cmpStr = (a: string, b: string) => (a < b ? -1 : a > b ? 1 : 0);
@@ -124,7 +125,7 @@ export function markdown(result: Result): string {
   const findings = result.findings;
   const stats = result.stats;
   const out: string[] = ["# Local SaaS Security Heuristic Scan", "",
-    `- **Scanner:** v${VERSION}, read-only local heuristics; no network requests, no target-code execution.`,
+    `- **Scanner:** saas-security-audit v${CLI_VERSION} (rules ${VERSION}), ${process.env.SAAS_AUDIT_ENGINE === "regex" ? "line rules only" : "line rules plus code-flow analysis for JavaScript/TypeScript"}; read-only, no network requests, no target-code execution.`,
     `- **Files scanned:** ${stats.files_scanned}`,
     "- **Interpretation:** Every finding is a lead to validate in code, not a confirmed vulnerability.",
     "- **Coverage:** No control is automatically marked PASS.", "",
