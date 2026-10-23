@@ -1,164 +1,158 @@
 import React, { useEffect, useRef, useState } from "react";
-import { Box, Text, useApp, useStdout } from "ink";
+import { Text, useApp, useInput, useStdin, useStdout } from "ink";
 import type { Finding, ScanEvents } from "../engine.js";
-import { AMBER, BEAM, GROUPS, SEV_INK, SEV_SHORT, groupOf, hex, lerpRgb } from "./theme.js";
+import { SEVERITY_RANK } from "../rules.js";
 import { shownByDefault } from "../view.js";
-
-type Phase = "discover" | "scan" | "analyze" | "done";
+import { GROUPS, groupOf, num, termWidth } from "./theme.js";
+import { liveFrame, type RunInfo, type StepState } from "./screens.js";
+import { promptFrame } from "./prompt.js";
 
 export interface LiveScanProps {
-  version: string;
-  target: string;
-  /** Runs the scan, reporting progress through the given events. */
-  run(events: ScanEvents): Promise<void>;
-  /** Minimum time the animation stays on screen, so fast scans are still readable. */
+  info: RunInfo;
+  report: string | null;
+  includeTests: boolean;
+  /** Runs scan + report writing; reports progress through `events` and stops when `signal.aborted`. */
+  run(events: ScanEvents, signal: { aborted: boolean }): Promise<void>;
+  /** Called once if the user stops the scan, with the overall percent reached. */
+  onStopped(percent: number): void;
   minMs?: number;
-  /** Count and show findings in test files / local env files too (otherwise source code only). */
-  includeTests?: boolean;
 }
 
-const FRAME_MS = 70;
-const TRAIL = ["░", "▒", "▓", "█", "▓", "▒", "░"];
-const EIGHTHS = ["", "▏", "▎", "▍", "▌", "▋", "▊", "▉"];
-const PHASE_LABEL: Record<Phase, string> = { discover: "MAPPING", scan: "SCANNING", analyze: "CORRELATING", done: "COMPLETE" };
+const FRAME_MS = 80;
+const STEPS = ["Discover", "Classify", "Analyse", "Correlate", "Report"] as const;
+const WEIGHTS = [0.04, 0.02, 0.86, 0.05, 0.03];
 
-function Gradient({ text }: { text: string }) {
-  const chars = [...text];
-  return (
-    <Text bold>
-      {chars.map((ch, i) => (
-        <Text key={i} color={hex(lerpRgb(chars.length > 1 ? i / (chars.length - 1) : 0))}>{ch}</Text>
-      ))}
-    </Text>
-  );
-}
+const fmtTime = (ms: number) => `${(ms / 1000).toFixed(1)}s`;
+const fmtEta = (secs: number) => `${Math.floor(secs / 60)}:${String(Math.round(secs % 60)).padStart(2, "0")}`;
 
-function Beam({ frame, width, active }: { frame: number; width: number; active: boolean }) {
-  const span = Math.max(1, 2 * (width - 1));
-  const p = frame % span;
-  const head = p < width ? p : span - p;
-  const cells = Array.from({ length: width }, (_, i) => {
-    const d = i - head + 3;
-    if (active && d >= 0 && d < TRAIL.length) {
-      return <Text key={i} color={d === 3 ? BEAM : hex(lerpRgb(Math.abs(d - 3) / 4))}>{TRAIL[d]}</Text>;
-    }
-    return <Text key={i} color="gray" dimColor>·</Text>;
-  });
-  return <Text>{cells}</Text>;
-}
-
-function Bar({ fraction, width }: { fraction: number; width: number }) {
-  const exact = Math.max(0, Math.min(1, fraction)) * width;
-  const full = Math.floor(exact);
-  const partial = EIGHTHS[Math.floor((exact - full) * 8)];
-  const cells = [];
-  for (let i = 0; i < full; i++) cells.push(<Text key={i} color={hex(lerpRgb(i / Math.max(1, width - 1)))}>█</Text>);
-  if (partial && full < width) cells.push(<Text key="p" color={hex(lerpRgb(full / Math.max(1, width - 1)))}>{partial}</Text>);
-  const rest = width - full - (partial && full < width ? 1 : 0);
-  if (rest > 0) cells.push(<Text key="r" color="gray" dimColor>{"─".repeat(rest)}</Text>);
-  return <Text>{cells}</Text>;
-}
-
-const truncLeft = (s: string, n: number) => (s.length <= n ? s : "…" + s.slice(s.length - n + 1));
-
-export function LiveScan({ version, target, run, minMs = 1400, includeTests = false }: LiveScanProps) {
+export function LiveScan({ info, report, includeTests, run, onStopped, minMs = 900 }: LiveScanProps) {
   const { exit } = useApp();
   const { stdout } = useStdout();
-  const cols = Math.max(50, Math.min(stdout?.columns ?? 80, 100));
-  const width = Math.max(20, Math.min(46, cols - 30));
-
+  const { isRawModeSupported } = useStdin();
   const [frame, setFrame] = useState(0);
-  const phase = useRef<Phase>("discover");
-  const total = useRef(0);
-  const index = useRef(0);
-  const current = useRef("");
-  const feed = useRef<Finding[]>([]);
-  const groupCounts = useRef<number[]>(GROUPS.map(() => 0));
+  const [asking, setAsking] = useState(false);
+  const [askYes, setAskYes] = useState(false);
+  const [finished, setFinished] = useState(false);
+
+  const signal = useRef({ aborted: false });
   const start = useRef(Date.now());
+  const step = useRef(0);
+  const stepStart = useRef(Date.now());
+  const times = useRef<string[]>([]);
+  const totals = useRef({ files: 0, analysable: 0, skipped: 0 });
+  const analyse = useRef({ done: 0, startedAt: 0 });
+  const current = useRef("");
+  const counts = useRef<Record<string, number>>({ Critical: 0, High: 0, Medium: 0, Low: 0, Informational: 0 });
+  const areaTotals = useRef(GROUPS.map((g) => ({ label: g.label, total: 0, crit: 0, high: 0, signals: false })));
+  const latest = useRef<Finding[]>([]);
+
+  const advance = (to: number) => {
+    while (step.current < to) {
+      times.current[step.current] = fmtTime(Date.now() - stepStart.current);
+      step.current++;
+      stepStart.current = Date.now();
+    }
+  };
+
+  const overall = () => {
+    const done = WEIGHTS.slice(0, step.current).reduce((a, b) => a + b, 0);
+    const within = step.current === 2 && totals.current.analysable ? analyse.current.done / totals.current.analysable : 0;
+    return Math.min(100, (done + (WEIGHTS[step.current] ?? 0) * within) * 100);
+  };
+
+  const stop = () => {
+    signal.current.aborted = true;
+    onStopped(overall());
+    setAsking(false);
+  };
+
+  useInput((input, key) => {
+    if (finished) return;
+    if (key.ctrl && input === "c") {
+      if (asking) stop();
+      else { setAskYes(false); setAsking(true); }
+      return;
+    }
+    if (!asking) return;
+    if (key.leftArrow || key.rightArrow || key.tab) setAskYes((v) => !v);
+    else if (key.return) { if (askYes) stop(); else setAsking(false); }
+    else if (input === "y" || input === "Y") stop();
+    else if (input === "n" || input === "N" || key.escape) setAsking(false);
+  }, { isActive: isRawModeSupported });
 
   useEffect(() => {
     const timer = setInterval(() => setFrame((f) => f + 1), FRAME_MS);
-    let cancelled = false;
     run({
-      onPhase: (p) => { if (p !== "done") phase.current = p as Phase; },
-      onDiscover: (n) => { total.current = n; },
-      onFile: (rel, i) => { current.current = rel; index.current = i + 1; },
+      onPhase: (p) => {
+        if (p === "classify") advance(1);
+        else if (p === "scan") { advance(2); analyse.current.startedAt = Date.now(); }
+        else if (p === "analyze") advance(3);
+        else if (p === "report") advance(4);
+      },
+      onDiscover: (n) => { totals.current.files = n; },
+      onClassify: (a, s) => { totals.current.analysable = a; totals.current.skipped = s; },
+      onAnalyse: (rel, done) => { current.current = rel; analyse.current.done = done; },
       onFinding: (f) => {
         if (!includeTests && !shownByDefault(f)) return;
+        counts.current[f.severity] = (counts.current[f.severity] ?? 0) + 1;
         const g = groupOf(f.controls[0]);
-        if (g >= 0) groupCounts.current[g]++;
-        feed.current = [f, ...feed.current].slice(0, 4);
+        if (g >= 0) {
+          const a = areaTotals.current[g];
+          a.total++;
+          if (f.severity === "Critical") a.crit++;
+          if (f.severity === "High") a.high++;
+        }
+        if (SEVERITY_RANK[f.severity] >= SEVERITY_RANK.High) latest.current = [f, ...latest.current].slice(0, 5);
       },
-    }).then(async () => {
-      phase.current = "analyze";
+    }, signal.current).then(async () => {
+      advance(5);
       const wait = minMs - (Date.now() - start.current);
-      if (wait > 0) await new Promise((r) => setTimeout(r, wait));
-      if (cancelled) return;
-      phase.current = "done";
-      index.current = total.current;
-      setFrame((f) => f + 1);
+      if (wait > 0 && !signal.current.aborted) await new Promise((r) => setTimeout(r, wait));
       clearInterval(timer);
+      setFinished(true);
       setTimeout(() => exit(), FRAME_MS);
     }, (err) => {
       clearInterval(timer);
       exit(err instanceof Error ? err : new Error(String(err)));
     });
-    return () => { cancelled = true; clearInterval(timer); };
+    return () => clearInterval(timer);
   }, []);
 
-  const done = phase.current === "done";
-  const fraction = total.current ? index.current / total.current : 0;
-  const elapsed = ((Date.now() - start.current) / 1000).toFixed(1);
-  const blink = Math.floor(frame / 6) % 2 === 0;
+  if (finished) return <Text>{""}</Text>;
 
-  return (
-    <Box flexDirection="column" paddingX={1} paddingY={0}>
-      <Box>
-        <Text color={BEAM}>◢◤ </Text>
-        <Gradient text="SAAS SECURITY AUDIT" />
-        <Text color="gray">{`  v${version}  ·  read-only · offline scan`}</Text>
-      </Box>
-      <Text color="gray">{"target  "}<Text color="white">{truncLeft(target, cols - 12)}</Text></Text>
-      <Text> </Text>
-      <Box>
-        <Text color="gray">⟦</Text>
-        <Beam frame={frame} width={width} active={!done} />
-        <Text color="gray">⟧ </Text>
-        <Text color={done ? "green" : blink ? BEAM : "cyan"} bold>{done ? "✔ " : "◉ "}{PHASE_LABEL[phase.current]}</Text>
-      </Box>
-      <Box>
-        <Text>{" "}</Text>
-        <Bar fraction={done ? 1 : fraction} width={width} />
-        <Text>{" "}</Text>
-        <Text bold>{String(Math.round((done ? 1 : fraction) * 100)).padStart(3)}%</Text>
-        <Text color="gray">{`  ${index.current}/${total.current} files · ${elapsed}s`}</Text>
-      </Box>
-      <Text color="gray">{done ? " " : "▸ "}<Text color="white">{done ? "" : truncLeft(current.current, cols - 6)}</Text></Text>
-      <Text> </Text>
-      {GROUPS.map((g, i) => {
-        const n = groupCounts.current[i];
-        return (
-          <Text key={g.label}>
-            <Text color={n ? AMBER : "gray"}>{n ? " ▲ " : " ● "}</Text>
-            <Text color={n ? "white" : "gray"}>{g.label.padEnd(28, " ")}</Text>
-            <Text color={n ? AMBER : "gray"} bold={n > 0}>{n ? String(n) : "–"}</Text>
-          </Text>
-        );
-      })}
-      <Text> </Text>
-      <Text color="gray" dimColor>{"─ live findings ".padEnd(Math.min(cols - 4, 60), "─")}</Text>
-      {[0, 1, 2, 3].map((i) => {
-        const f = feed.current[i];
-        if (!f) return <Text key={i} color="gray" dimColor>{i === 0 && !done ? "  waiting for signals…" : " "}</Text>;
-        return (
-          <Text key={i} wrap="truncate-end">
-            <Text color={SEV_INK[f.severity]} bold>{` ${(SEV_SHORT[f.severity] ?? f.severity).padEnd(5)}`}</Text>
-            <Text color="gray">{f.id}  </Text>
-            <Text color="white">{`${f.file}:${f.line}`}</Text>
-            <Text color="gray">{`  ${f.title}`}</Text>
-          </Text>
-        );
-      })}
-    </Box>
-  );
+  const width = termWidth(stdout?.columns);
+  const height = Math.max(24, stdout?.rows ?? 40);
+  const elapsedAnalyse = analyse.current.startedAt ? (Date.now() - analyse.current.startedAt) / 1000 : 0;
+  const rate = elapsedAnalyse > 0.5 ? analyse.current.done / elapsedAnalyse : 0;
+  const remaining = totals.current.analysable - analyse.current.done;
+  const eta = step.current === 2 && rate > 0 ? fmtEta(remaining / rate) : "";
+  const state = (i: number): StepState => (i < step.current ? "done" : i === step.current ? "active" : "pending");
+  const details = [
+    totals.current.files ? `${num(totals.current.files)} files indexed` : "walking the repository",
+    totals.current.analysable ? `${num(totals.current.analysable)} to analyse · ${num(totals.current.skipped)} skipped by type and ignore rules` : "by file type and ignore rules",
+    "",
+    "dedupe and group by rule",
+    report ?? "terminal summary",
+  ];
+
+  const text = liveFrame({
+    info: { ...info, width },
+    height,
+    frame,
+    steps: STEPS.map((name, i) => ({ name, state: state(i), detail: details[i], time: times.current[i] })),
+    analyse: { done: analyse.current.done, total: totals.current.analysable, eta },
+    overall: overall(),
+    elapsed: (Date.now() - start.current) / 1000,
+    stepIndex: Math.min(step.current, STEPS.length - 1),
+    current: step.current === 2 ? current.current : "",
+    counts: counts.current,
+    areaTotals: areaTotals.current,
+    latest: latest.current,
+    prompt: asking ? promptFrame({
+      question: `Stop the scan at ${Math.round(overall())}%?`,
+      note: report ? `partial results are saved to ${report}` : "partial results are kept",
+      yes: "Yes, stop", no: "No, keep going", defaultYes: false, tone: "warn", hint: "ctrl+c again stops immediately",
+    }, askYes, width - 2) : undefined,
+  });
+  return <Text>{text}</Text>;
 }

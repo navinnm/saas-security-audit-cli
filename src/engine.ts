@@ -27,9 +27,31 @@ export interface ScanState {
 
 export interface ScanEvents {
   onDiscover?(total: number): void;
+  /** After discovery: files that will be analysed vs skipped by type and ignore rules. */
+  onClassify?(analysable: number, skipped: number): void;
   onFile?(rel: string, index: number, total: number): void;
+  /** Progress through the analysable files only. */
+  onAnalyse?(rel: string, done: number, total: number): void;
   onFinding?(f: Finding): void;
   onPhase?(phase: string): void;
+}
+
+export interface ScanOptions {
+  /** Files from an earlier preflight(), so the tree isn't walked twice. */
+  files?: WalkedFile[];
+  /** Set `aborted` to stop analysing; the scan returns what it found so far. */
+  signal?: { aborted: boolean };
+}
+
+export type WalkedFile = { abs: string; rel: string; name: string };
+
+export interface Preflight {
+  files: WalkedFile[];
+  total: number;
+  analysable: number;
+  skipped: number;
+  /** Security-relevant packages found in manifests: name → [control, role]. */
+  packages: Record<string, [number, string]>;
 }
 
 const COMMENT_PREFIXES = R.comment_prefixes;
@@ -234,7 +256,7 @@ function recordPackages(name: string, lines: string[], packages: ScanState["pack
 }
 
 /** os.walk(top-down, followlinks=False) order: files of a directory, then its subdirectories, both sorted. */
-function walk(root: string): { abs: string; rel: string; name: string }[] {
+function walk(root: string): WalkedFile[] {
   const out: { abs: string; rel: string; name: string }[] = [];
   const visit = (dir: string, relDir: string) => {
     let entries;
@@ -275,7 +297,22 @@ export function newState(): ScanState {
 const isDir = (p: string) => { try { return statSync(p).isDirectory(); } catch { return false; } };
 const tick = () => new Promise<void>((r) => setImmediate(r));
 
-export async function scan(root: string, state: ScanState = newState(), ev: ScanEvents = {}): Promise<Finding[]> {
+const isAnalysable = (name: string) => classify(name, pySuffix(name).toLowerCase()) !== null;
+
+/** Fast pre-pass for the welcome screen: walk the tree, classify files, read manifests for the stack. */
+export function preflight(root: string): Preflight {
+  const files = walk(root);
+  const analysable = files.filter((f) => isAnalysable(f.name)).length;
+  const packages: Preflight["packages"] = {};
+  for (const f of files) {
+    if (!R.manifests[f.name]) continue;
+    const lines = readLines(f.abs);
+    if (lines) recordPackages(f.name, lines, packages);
+  }
+  return { files, total: files.length, analysable, skipped: files.length - analysable, packages };
+}
+
+export async function scan(root: string, state: ScanState = newState(), ev: ScanEvents = {}, opts: ScanOptions = {}): Promise<Finding[]> {
   const findings: Finding[] = [];
   const emit = (f: Finding) => { findings.push(f); ev.onFinding?.(f); };
   const ignorePats = parseGitignore(root);
@@ -284,14 +321,20 @@ export async function scan(root: string, state: ScanState = newState(), ev: Scan
   const supabase = isDir(join(root, "supabase"));
 
   ev.onPhase?.("discover");
-  const files = walk(root);
+  const files = opts.files ?? walk(root);
   ev.onDiscover?.(files.length);
+  ev.onPhase?.("classify");
+  const analysableTotal = files.filter((f) => isAnalysable(f.name)).length;
+  ev.onClassify?.(analysableTotal, files.length - analysableTotal);
   ev.onPhase?.("scan");
   let lastYield = Date.now();
+  let analysed = 0;
 
   for (let idx = 0; idx < files.length; idx++) {
+    if (opts.signal?.aborted) break;
     const { abs, rel, name } = files[idx];
     ev.onFile?.(rel, idx, files.length);
+    if (isAnalysable(name)) ev.onAnalyse?.(rel, ++analysed, analysableTotal);
     if (Date.now() - lastYield > 12) {
       await tick();
       lastYield = Date.now();

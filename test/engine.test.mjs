@@ -128,7 +128,8 @@ test("CLI: json output, fail-on exit codes, bad args", async () => {
     assert.equal(spawnSync("node", [CLI, join(root, "missing")]).status, 2);
     const md = run();
     assert.equal(md.status, 0);
-    assert.ok(md.stdout.startsWith("# Local SaaS Security Heuristic Scan"), "non-TTY defaults to Markdown");
+    assert.ok(md.stdout.startsWith("saas-audit  "), "non-TTY defaults to the plain CI text format");
+    assert.ok(!/\x1b\[/.test(md.stdout), "CI text has no colour codes");
   });
 });
 

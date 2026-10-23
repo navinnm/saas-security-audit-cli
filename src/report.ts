@@ -110,6 +110,8 @@ export interface Result {
     security_packages: { package: string; control: number; role: string }[];
     env_files: { file: string; gitignored: boolean; example: boolean }[]; test_files: number; ci_files: string[] };
   limitations: string[]; comparison?: Comparison;
+  /** Present when the user stopped the scan early. */
+  partial?: { stopped_at_percent: number };
 }
 
 const mdEscape = (t: string) => t.replace(/`/g, "'").replace(/\|/g, "\\|");

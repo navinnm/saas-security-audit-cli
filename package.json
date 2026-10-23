@@ -1,6 +1,6 @@
 {
   "name": "saas-security-audit",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "description": "SaaS security scanner CLI: finds tenant isolation gaps, IDOR/BOLA, missing Supabase RLS, leaked secrets, SQL injection, CORS and webhook flaws. Maps evidence to 22 controls. Local, read-only, no network.",
   "type": "module",
   "bin": {
@@ -17,7 +17,7 @@
     "node": ">=18.18"
   },
   "scripts": {
-    "build": "tsc -p tsconfig.json && chmod +x dist/cli.js",
+    "build": "rm -rf dist && tsc -p tsconfig.json && chmod +x dist/cli.js",
     "test": "npm run build && node --test test/*.test.mjs",
     "sync-rules": "python3 scripts/sync-rules.py --plugin ../saas-security-audit/scripts/scan.py",
     "prepublishOnly": "npm test"

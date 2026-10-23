@@ -34,23 +34,34 @@ It supports JavaScript/TypeScript (Next.js, Express, NestJS, Fastify, Hono), Pyt
 
 ```bash
 saas-audit [path] [options]
+saas-audit show <rule> [path]        Every location, snippet and fix for one rule, e.g. saas-audit show SEC031
+saas-audit update                    Update to the latest version
 
-  --format <pretty|markdown|json|html>  Default: pretty in a terminal, markdown when piped/CI
-  --json                           Shorthand for --format json
-  --output <file>                  Write a report; repeatable. Format from extension: .pdf .html .json .md
-  --min-severity <level>           informational | low | medium | high | critical
-  --fail-on <level>                Exit 1 on a lead at/above this severity (CI gate)
-  --baseline <file>                Diff against a previous JSON run: new / resolved / persisting
-  --include-tests                  List findings in test files and gitignored env files without asking
-  --no-animation                   Skip the live scanner panel
-  --no-update-check                Don't check npm for a newer version
-
-saas-audit update                  Update to the latest version
+  --output <file>                    Write a report; repeatable. Format from extension: .pdf .html .json .md
+  --fail-on <level>                  Exit 1 on a lead at/above: low | medium | high | critical (CI gate)
+  --format <format>                  pretty | text | github | markdown | json | html
+                                     (default: pretty in a terminal, text when piped or in CI)
+  --json                             Shorthand for --format json
+  --all                              Expand medium and low findings in the terminal
+  --include-tests                    Include test files and gitignored env files without asking
+  --yes, --no-input                  Skip the welcome screen; every prompt takes its default
+  --min-severity <level>             Hide leads below this severity
+  --baseline <file>                  Diff against a previous JSON run: new / resolved / persisting
+  --no-animation                     Plain output, no live panel
+  --no-update-check                  Don't check npm for a newer version
 ```
 
-Findings in your source code come first. Findings in test files and gitignored local env files are collapsed into one line, and in an interactive terminal the CLI asks whether to show them; `--include-tests` lists them straight away. Real-format secrets are always shown, even in tests. Report files (`--output`) always contain everything.
+### What you see in a terminal
 
-In an interactive terminal you get the live scanner: a sweeping scan beam, a progress bar, per-category counters, and a feed of findings as they're discovered. With `CI` set, `NO_COLOR` set, or output piped, it switches automatically to plain Markdown.
+1. **Welcome:** the target (project, path, detected stack, file count), the run settings, the six areas checked, and **"Start the scan now?"** (skip with `--yes`).
+2. **Live scan:** an overall progress bar, a five-step pipeline (Discover → Classify → Analyse → Correlate → Report) with ETA, running severity counts, six area cards, and the latest critical and high findings as they're found. Press **Ctrl+C** to get "Stop the scan at 72%?"; the default is to keep going, and stopping keeps the partial results.
+3. **Summary & verdict:** a release verdict (blocked, high-risk, gate passed, or clean), counts, where the worst findings live (application source vs generated build output), the severity shape, a by-area breakdown with the rules driving it, and the 22-control coverage grid.
+4. **Findings by rule:** worst first, each with its locations as a tree and a `→` fix. Medium and low collapse into one table (`--all` expands them).
+5. **Fix order:** numbered actions (every critical, then the high-severity rules), the controls that still need manual review, next commands, and the exit code.
+
+Findings in test files and gitignored local env files aren't counted in the totals. The CLI asks whether to show them, with No as the default; `--include-tests` shows them straight away. Real-format secrets are always shown, even in tests, and report files always contain everything.
+
+Prompts only appear in an interactive terminal. In CI or when piped, the CLI prints compact plain text with no colour, no spinner and no prompts, and never waits for input.
 
 ### Reports: PDF, HTML, JSON, Markdown
 
@@ -66,8 +77,10 @@ saas-audit --output security-report.pdf --output security-report.html
 
 ```yaml
 - name: SaaS security scan
-  run: npx saas-security-audit@0.4.0 --fail-on high --output security-report.md
+  run: npx saas-security-audit@0.5.0 --fail-on high --format github --output security-report.md
 ```
+
+`--format github` adds inline annotations on the pull request (errors for critical and high, warnings for medium), followed by the plain-text summary.
 
 Track progress between runs:
 ```bash
