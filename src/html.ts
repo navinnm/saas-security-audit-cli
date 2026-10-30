@@ -1,127 +1,78 @@
 /**
  * Self-contained HTML report: no external fonts, scripts, or images, so it opens offline and
  * never makes a network request. Laid out like a security assessment document (numbered sections,
- * restrained type, one accent colour) for screen and for print (A4).
+ * one finding per issue with its locations, restrained type, one accent colour) for screen and for print (A4).
  */
-import type { Finding } from "./engine.js";
 import type { Result } from "./report.js";
-import { standardsLabels, type TechniqueRow } from "./standards.js";
-import { R } from "./rules.js";
+import { depsLine } from "./report.js";
+import { R, VERSION as RULES_VERSION } from "./rules.js";
 import { CLI_VERSION as VERSION } from "./version.js";
-import { buildView, controlLabel, formatDate, SEVERITY_ORDER, type CoverageRow, type View } from "./view.js";
+import { buildView, checklistLines, controlLabel, coverageLines, formatDate, SEVERITY_ORDER, standardSections, type Issue, type View } from "./view.js";
 
 const esc = (s: unknown) => String(s).replace(/[&<>"']/g, (ch) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[ch]!);
 const SEV_KEY: Record<string, string> = { Critical: "crit", High: "high", Medium: "med", Low: "low", Informational: "info" };
-const SEV_LABEL: Record<string, string> = { Critical: "Critical", High: "High", Medium: "Medium", Low: "Low", Informational: "Informational" };
-const RATING: Record<View["posture"]["level"], string> = { critical: "Critical risk", high: "Elevated risk", medium: "Moderate risk", low: "Low risk" };
+const RATING: Record<View["posture"]["level"], string> = { critical: "Critical", high: "High", medium: "Medium", low: "Low" };
+/** Locations shown before the rest fold away. */
+const OPEN_LOCATIONS = 8;
 
-/** Finding numbers for the report (F-01, F-02 …), in the order shown. */
-const ref = (i: number, total: number) => `F-${String(i + 1).padStart(Math.max(2, String(total).length), "0")}`;
+const sev = (s: string) => `<span class="sev ${SEV_KEY[s]}"><i></i>${esc(s)}</span>`;
 
-const sev = (s: string) => `<span class="sev ${SEV_KEY[s]}"><i></i>${SEV_LABEL[s]}</span>`;
-
-const stdTags = (f: Finding) => standardsLabels(f.standards).map(esc).join(" · ");
-
-function findingRow(f: Finding, i: number, total: number, withEvidence: boolean): string {
-  const k = SEV_KEY[f.severity];
-  const ctx = f.context === "source" ? "" : ` <span class="muted">(${esc(f.context)})</span>`;
-  const search = esc(`${f.id} ${f.title} ${f.file} ${controlLabel(f.controls[0])}`.toLowerCase());
-  const tags = stdTags(f);
-  const detail = withEvidence
-    ? `<details><summary>Evidence and remediation</summary>
-<dl class="detail"><dt>Evidence</dt><dd><pre>${esc(f.evidence)}</pre></dd>
-<dt>Remediation</dt><dd>${esc(f.guidance)}</dd>
-<dt>Classification</dt><dd>${esc(controlLabel(f.controls[0]))}${f.controls.length > 1 ? ` (also ${f.controls.slice(1).map((c) => esc(controlLabel(c))).join(", ")})` : ""} · confidence ${esc(f.confidence)}${tags ? ` · ${tags}` : ""}</dd></dl></details>`
-    : "";
-  return `<tr class="f" data-sev="${k}" data-q="${search}"><td class="ref">${ref(i, total)}</td><td>${sev(f.severity)}</td>
-<td><div class="title">${esc(f.title)}</div><div class="loc">${esc(f.file)}:${f.line}${ctx}</div>${detail}</td>
-<td class="rule">${esc(f.id)}</td></tr>`;
+function locationRows(i: Issue): string {
+  const row = (f: Issue["locations"][number]) => {
+    const extra = [i.mixed ? f.severity : "", f.title !== i.title ? f.title : ""].filter(Boolean).join(" · ");
+    return `<li><div class="loc">${esc(f.file)}:${f.line}${extra ? ` <span class="muted">${esc(extra)}</span>` : ""}</div><pre>${esc(f.evidence)}</pre></li>`;
+  };
+  const first = i.locations.slice(0, OPEN_LOCATIONS).map(row).join("");
+  const rest = i.locations.slice(OPEN_LOCATIONS);
+  return `<ul class="locs">${first}</ul>${rest.length
+    ? `<details class="more"><summary>${rest.length} more location${rest.length === 1 ? "" : "s"}</summary><ul class="locs">${rest.map(row).join("")}</ul></details>` : ""}`;
 }
 
-function findingsTable(findings: Finding[], withEvidence: boolean, id: string): string {
-  if (!findings.length) return `<p class="note">No leads in source code. This is not evidence that the application is secure; the controls listed under Control coverage still need verification.</p>`;
-  return `<table class="findings" id="${id}"><thead><tr><th>Ref.</th><th>Severity</th><th>Finding and location</th><th>Rule</th></tr></thead>
-<tbody>${findings.map((f, i) => findingRow(f, i, findings.length, withEvidence)).join("\n")}</tbody></table>`;
-}
-
-function coverageRow(r: CoverageRow, status: "leads" | "none" | "unverified"): string {
-  const label = { leads: `<span class="status warn">Leads to verify</span>`, none: `<span class="status">No signals found</span>`, unverified: `<span class="status">Not verified</span>` }[status];
-  const sig = r.signals ? `${r.signals.source_count} / ${r.signals.test_count}` : "–";
-  const look = r.id === 17 ? "Independent review (Claude Code plugin)" : r.id === 15 ? "Dependency and secret scanning tools"
-    : r.signals?.locations.length ? r.signals.locations.slice(0, 3).map((l) => `<code>${esc(l)}</code>`).join(" ") : `<span class="muted">–</span>`;
-  return `<tr><td class="ref">C${r.id}</td><td>${esc(r.name)}</td><td>${label}</td><td class="num">${r.leads || "–"}</td><td class="num muted">${sig}</td><td class="look">${look}</td></tr>`;
-}
-
-function vibeHtml(result: Result, n: number): string {
-  const found = result.vibe_review.filter((v) => v.status === "found").length;
-  return `<section><h2><span>${n}</span>Vibe-code review</h2>
-<p class="lede">Patterns common in AI-generated code. ${found} of ${result.vibe_review.length} were matched. "Not matched" means no lead was found; it is not a pass.</p>
-<table><thead><tr><th>Pattern</th><th>Rules</th><th>Result</th><th class="num">Leads</th></tr></thead><tbody>
-${result.vibe_review.map((v) => `<tr><td>${esc(v.title)}</td><td class="muted mono small">${esc(v.rules.join(", "))}</td>
-<td>${v.status === "found" ? `<span class="status warn">Matched</span>` : `<span class="status">Not matched</span>`}</td><td class="num">${v.status === "found" ? v.leads : "–"}</td></tr>`).join("")}
-</tbody></table></section>`;
-}
-
-function techTable(title: string, kind: string, rows: TechniqueRow[]): string {
-  return `<h3>${esc(title)}</h3><table><thead><tr><th>ID</th><th>${kind}</th><th class="num">Leads</th><th>Rules</th></tr></thead><tbody>
-${rows.map((t) => `<tr><td class="mono${t.leads ? " strong" : ""}">${esc(t.id)}</td><td>${esc(t.name)}</td><td class="num${t.leads ? " strong" : ""}">${t.leads || "–"}</td>
-<td class="muted small">${esc(t.rules.join(", "))}</td></tr>`).join("")}</tbody></table>`;
-}
-
-function standardsHtml(result: Result, n: number): string {
-  const s = result.standards;
-  const table = (title: string, rows: typeof s.owasp_top10_2021) => `<h3>${title}</h3><table><thead><tr><th>ID</th><th>Category</th><th class="num">Leads</th><th>Rules</th></tr></thead><tbody>
-${rows.map((r) => `<tr><td class="mono${r.leads ? " strong" : ""}">${esc(r.id)}</td><td>${esc(r.name)}</td><td class="num${r.leads ? " strong" : ""}">${r.checked ? (r.leads || "–") : "–"}</td>
-<td class="muted small">${r.checked ? esc(r.rules.join(", ")) : "Not covered by this scanner"}</td></tr>`).join("")}</tbody></table>`;
-  const cwe = s.cwe.length ? `<table><thead><tr><th>CWE</th><th>Weakness</th><th class="num">Leads</th><th>CWE Top 25 (2024)</th></tr></thead><tbody>
-${s.cwe.map((x) => `<tr><td class="mono">${esc(x.id)}</td><td>${esc(x.name)}</td><td class="num">${x.leads}</td><td>${x.top25 ? "Yes" : `<span class="muted">–</span>`}</td></tr>`).join("")}</tbody></table>`
-    : `<p class="note">No CWE-mapped leads in source code.</p>`;
-  const fws = s.frameworks.map((fw) => `<tr><td class="strong">${esc(fw.name)}</td><td>${fw.requirements.length
-    ? fw.requirements.map((r) => `<span class="req">${esc(r.ref)}${r.name ? ` ${esc(r.name)}` : ""} <span class="muted">(${r.leads})</span></span>`).join("")
-    : '<span class="muted">No related leads in source code</span>'}</td></tr>`).join("");
-  return `<section><h2><span>${n}</span>Standards mapping</h2>
-<p class="lede">${esc(s.note)}</p>
-${table("OWASP Top 10 (2021)", s.owasp_top10_2021)}
-${table("OWASP API Security Top 10 (2023)", s.owasp_api_2023)}
-${table("OWASP Top 10 for LLM Applications (2025)", s.owasp_llm_2025)}
-<h3>CWE</h3>${cwe}
-<h3>Compliance frameworks</h3><table><thead><tr><th>Framework</th><th>Related requirements (leads)</th></tr></thead><tbody>${fws}</tbody></table>
-${techTable(`MITRE ATT&CK (v${s.versions.attack})`, "Technique", s.mitre_attack)}
-${techTable(`MITRE ATLAS (${s.versions.atlas})`, "Technique", s.mitre_atlas)}
-${techTable(`MITRE D3FEND (${s.versions.d3fend}) countermeasures`, "Countermeasure", s.mitre_d3fend)}</section>`;
+function issueCard(i: Issue): string {
+  const search = esc(`${i.ref} ${i.id} ${i.title} ${i.locations.map((f) => f.file).join(" ")}`.toLowerCase());
+  return `<article class="issue" data-sev="${SEV_KEY[i.severity]}" data-q="${search}" id="${i.ref}">
+<header><span class="ref">${i.ref}</span><h3>${esc(i.title)}</h3>${sev(i.severity)}</header>
+<p class="facts">Confidence ${esc(i.confidence)} · ${esc(controlLabel(i.controls[0]))} · ${i.locations.length} location${i.locations.length === 1 ? "" : "s"} in ${i.files} file${i.files === 1 ? "" : "s"} · Rule ${esc(i.id)}</p>
+${i.risk ? `<h4>Risk</h4><p>${esc(i.risk)}</p>` : ""}
+<h4>Affected locations</h4>${locationRows(i)}
+<h4>Recommendation</h4><p>${esc(i.guidance)}</p>
+${i.verify ? `<h4>How to verify</h4><p>${esc(i.verify)}</p>` : ""}
+${i.references.length ? `<p class="refs">${i.references.map(esc).join(" · ")}</p>` : ""}
+</article>`;
 }
 
 export function renderHtml(result: Result, opts: { includeTests?: boolean; now?: Date } = {}): string {
   const v = buildView(result, Boolean(opts.includeTests), opts.now);
-  const s = result.stats;
   const inv = result.inventory;
-  const total = SEVERITY_ORDER.reduce((a, x) => a + (v.sourceCounts[x] ?? 0), 0);
-  const sevRows = SEVERITY_ORDER.map((x) => {
-    const n = v.sourceCounts[x] ?? 0;
-    return `<tr${n ? "" : ' class="zero"'}><td>${sev(x)}</td><td class="num">${n}</td><td class="barcell"><span class="bar ${SEV_KEY[x]}" style="width:${total ? (100 * n) / total : 0}%"></span></td></tr>`;
-  }).join("");
-  const filters = [`<button class="filter on" data-f="all">All (${v.shown.length})</button>`,
+  const own = result.stats.files_scanned - (inv.third_party_files ?? 0);
+  const date = formatDate(v.generatedAt);
+  const counts = SEVERITY_ORDER.map((x) => [x, v.issues.filter((i) => i.severity === x).length, v.issues.filter((i) => i.severity === x).reduce((a, i) => a + i.locations.length, 0)] as const);
+  const sevRows = counts.map(([x, n, locs]) => `<tr${n ? "" : ' class="zero"'}><td>${sev(x)}</td><td class="num">${n}</td><td class="num">${locs}</td></tr>`).join("");
+  const keyRows = v.issues.map((i) => `<tr><td class="ref"><a href="#${i.ref}">${i.ref}</a></td><td>${esc(i.title)}</td><td>${sev(i.severity)}</td><td class="num">${i.locations.length}</td></tr>`).join("");
+  const filters = v.issues.length > 3 ? [`<button class="filter on" data-f="all">All (${v.issues.length})</button>`,
     ...SEVERITY_ORDER.map((x) => {
-      const n = v.shown.filter((f) => f.severity === x).length;
-      return n ? `<button class="filter" data-f="${SEV_KEY[x]}">${SEV_LABEL[x]} (${n})</button>` : "";
-    })].join("");
-  const coverage = ([
-    ...v.coverage.leads.map((r) => [r, "leads"] as const),
-    ...v.coverage.noSignals.map((r) => [r, "none"] as const),
-    ...v.coverage.notVerified.map((r) => [r, "unverified"] as const),
-  ]).sort((x, y) => x[0].id - y[0].id).map(([r, st]) => coverageRow(r, st)).join("\n");
-  const plan = v.guidance.map((g, i) => `<tr><td class="ref">${i + 1}</td><td><div class="title">${esc(g.title)}</div><div class="muted">${esc(g.guidance)}</div>${g.verify ? `<div class="verify"><b>Verify:</b> ${esc(g.verify)}</div>` : ""}</td>
-<td class="rule">${esc(g.id)}</td><td class="num">${g.count}</td></tr>`).join("");
+      const n = v.issues.filter((i) => i.severity === x).length;
+      return n ? `<button class="filter" data-f="${SEV_KEY[x]}">${x} (${n})</button>` : "";
+    })].join("") : "";
+  const coverage = coverageLines(result, v.issues).map((c) => `<tr><td class="ref">C${c.id}</td><td>${esc(c.name)}</td>
+<td>${c.found ? `<span class="status warn">${esc(c.result)}</span>` : `<span class="status">${esc(c.result)}</span>`}</td>
+<td>${c.refs.map((r) => `<a href="#${r}">${r}</a>`).join(", ") || `<span class="muted">–</span>`}</td></tr>`).join("");
+  const checklist = checklistLines(result, v.issues).map((c) => `<tr><td class="ref">${c.id}</td><td>${esc(c.title)}</td>
+<td>${c.refs.length ? `<span class="status warn">Found</span> ${c.refs.map((r) => `<a href="#${r}">${r}</a>`).join(", ")}` : `<span class="status">Not found</span>`}</td></tr>`).join("");
+  const standards = standardSections(result, v.issues).filter((sec) => sec.rows.length).map((sec) => `<h3>${esc(sec.title)}</h3>
+<table><thead><tr><th>ID</th><th>${sec.kind}</th><th>Findings</th></tr></thead><tbody>
+${sec.rows.map((r) => `<tr><td class="mono">${esc(r.id)}</td><td>${esc(r.name)}</td><td>${r.refs.map((x) => `<a href="#${x}">${x}</a>`).join(", ")}</td></tr>`).join("")}</tbody></table>`).join("");
+  const fws = result.standards.frameworks.filter((fw) => fw.requirements.length).map((fw) => `<tr><td class="strong">${esc(fw.name)}</td><td>${fw.requirements
+    .map((r) => `<span class="req">${esc(r.ref)}${r.name ? ` ${esc(r.name)}` : ""}</span>`).join("")}</td></tr>`).join("");
+  const libraries = v.libraries.map((l) => `<tr><td><code>${esc(l.path)}</code></td><td class="num">${l.files}</td><td class="num">${l.matches}</td><td class="muted small mono">${esc(l.rules.join(", "))}</td></tr>`).join("");
   const tools = inv.recommended_tools.map((t) => `<tr><td><code>${esc(t.command)}</code></td><td>${esc(t.purpose)}</td>
 <td>${t.installed ? "Installed" : `<span class="muted">Not installed</span>`}</td><td class="muted">${t.needs_network ? "Needs network" : "Offline"}</td></tr>`).join("");
-  const date = formatDate(v.generatedAt);
-  // Sections are numbered as they appear (the remediation plan is left out when there is nothing to fix).
   let sectionNo = 0;
   const no = () => ++sectionNo;
 
   return `<!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Security assessment · ${esc(v.project)}</title>
+<title>Security review · ${esc(v.project)}</title>
 <style>
 :root{--ink:#111827;--body:#374151;--muted:#6b7280;--rule:#e5e7eb;--rule2:#d1d5db;--shade:#f9fafb;--accent:#1f3a5f;
 --crit:#991b1b;--high:#b45309;--med:#a16207;--low:#1d4ed8;--info:#4b5563}
@@ -135,7 +86,7 @@ h1,h2,h3{color:var(--ink);font-weight:600;letter-spacing:-.005em}
 .kicker{font-size:11px;font-weight:600;letter-spacing:.14em;text-transform:uppercase;color:var(--accent);margin:0}
 h1{font-size:28px;line-height:1.2;margin:10px 0 22px}
 .meta{display:grid;grid-template-columns:150px 1fr;gap:6px 16px;margin:0;font-size:13px;border-top:1px solid var(--rule);border-bottom:1px solid var(--rule);padding:14px 0}
-.meta dt{color:var(--muted)}.meta dd{margin:0;color:var(--ink);word-break:break-all}
+.meta dt{color:var(--muted)}.meta dd{margin:0;color:var(--ink);overflow-wrap:anywhere}
 section{margin-top:40px}
 h2{font-size:18px;margin:0 0 6px;padding-bottom:8px;border-bottom:1px solid var(--rule2);display:flex;gap:12px;align-items:baseline}
 h2 span{color:var(--accent);font-variant-numeric:tabular-nums;min-width:18px}
@@ -193,76 +144,89 @@ table:not(.findings):not(.severity){display:block;overflow-x:auto}}
  .toolbar{display:none}details>summary{display:none}details{display:block}details:not([open])>*:not(summary){display:block}
  .bar,.sev i,.rating{-webkit-print-color-adjust:exact;print-color-adjust:exact}
 }
+
+.issue{border-top:1px solid var(--rule2);padding:18px 0 6px}
+.issue header{display:flex;align-items:baseline;gap:12px}
+.issue header h3{margin:0;font-size:15px;flex:1}
+.issue h4{font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;margin:14px 0 4px}
+.issue p{margin:0 0 4px}
+.issue .facts{color:var(--muted);font-size:12.5px;margin:4px 0 0}
+.issue .refs{color:var(--muted);font-size:12px;margin-top:12px}
+ul.locs{list-style:none;margin:0;padding:0}ul.locs li{margin:0 0 8px}
+ul.locs pre{margin-top:3px}
+.more summary{margin:2px 0 8px}
+.summary-text p{margin:0 0 10px;color:var(--ink)}
+a{color:var(--accent);text-decoration:none}a:hover{text-decoration:underline}
+.ref a{color:inherit}
+@media print{.more>summary{display:none}.more>*{display:block}.issue{break-inside:auto}.issue header{break-after:avoid}}
 </style></head>
 <body><div class="page">
 
 <header class="doc-head">
-<p class="kicker">Security assessment report · Confidential</p>
-<h1>Static security review of ${esc(v.project)}</h1>
+<p class="kicker">Source code security review</p>
+<h1>${esc(v.project)}</h1>
 <dl class="meta">
-<dt>Target</dt><dd>${esc(v.project)}</dd>
-<dt>Location</dt><dd class="mono">${esc(result.root)}</dd>
+<dt>Target</dt><dd class="mono">${esc(result.root)}</dd>
 <dt>Date</dt><dd>${esc(date)}</dd>
-<dt>Method</dt><dd>Read-only static analysis against 22 SaaS security controls; no code executed, no network access</dd>
-<dt>Tool</dt><dd>saas-security-audit v${esc(VERSION)}</dd>
+<dt>Scope</dt><dd>${own} files of application code${inv.third_party_files ? `, ${inv.third_party_files} files in bundled libraries` : ""}; dependencies ${esc(depsLine(result.dependencies))}</dd>
+<dt>Method</dt><dd>Static source review: pattern rules plus code-flow analysis for JavaScript/TypeScript. Read-only; no code was run.</dd>
+<dt>Tool</dt><dd>saas-security-audit v${esc(VERSION)} (rules ${esc(RULES_VERSION)})</dd>
 </dl>
 </header>
 
 <section>
-<h2><span>${no()}</span>Executive summary</h2>
+<h2><span>${no()}</span>Summary</h2>
 <div class="summary">
-<div>
-<div class="rating ${v.posture.level}"><div class="label">Overall rating</div><div class="value">${RATING[v.posture.level]}</div><p>${esc(v.posture.headline)}. ${esc(v.posture.detail)}</p></div>
-<dl class="facts"><dt>Files analysed</dt><dd>${s.files_scanned}</dd><dt>Controls with leads</dt><dd>${v.controlsWithLeads} of 22</dd>
-${v.hidden.length ? `<dt>Leads in test or local env files</dt><dd>${v.hidden.length}</dd>` : ""}${s.suppressed ? `<dt>Suppressed inline</dt><dd>${s.suppressed}</dd>` : ""}
-${v.stack.length ? `<dt>Stack detected</dt><dd>${v.stack.map(esc).join(", ")}</dd>` : ""}</dl>
+<div class="summary-text">
+<div class="rating ${v.posture.level}"><div class="label">Overall risk</div><div class="value">${RATING[v.posture.level]}</div></div>
+${v.summary.map((p) => `<p>${esc(p)}</p>`).join("")}
 </div>
-<div><table class="severity"><thead><tr><th>Severity</th><th class="num">Findings</th><th></th></tr></thead><tbody>${sevRows}
-<tr><td class="strong">Total</td><td class="num strong">${total}</td><td></td></tr></tbody></table>
-<p class="note small">Findings in application source code. Test files and gitignored local env files are reported separately.</p></div>
+<div><table class="severity"><thead><tr><th>Severity</th><th class="num">Issues</th><th class="num">Locations</th></tr></thead><tbody>${sevRows}</tbody></table>
+${v.stack.length ? `<p class="note small">Stack: ${v.stack.map(esc).join(", ")}</p>` : ""}</div>
 </div>
+${v.issues.length ? `<h3>Key findings</h3><table><thead><tr><th>Ref.</th><th>Issue</th><th>Severity</th><th class="num">Locations</th></tr></thead><tbody>${keyRows}</tbody></table>` : ""}
 </section>
 
 <section class="findings-section">
 <h2><span>${no()}</span>Findings</h2>
-<p class="lede">Each finding is a lead to confirm in code, not a confirmed vulnerability. Evidence is redacted; secret values never appear in this report.</p>
-${v.shown.length ? `<div class="toolbar">${filters}<input class="search" type="search" placeholder="Filter by rule, file or issue" aria-label="Filter findings"></div>` : ""}
-${findingsTable(v.shown, true, "main-findings")}
-${v.hidden.length ? `<h3>Test files &amp; local env files (${v.hidden.length})</h3><p class="note">Usually intentional samples (fixtures, mocks) or secrets in gitignored local env files. Not counted in the totals above.</p>
-${findingsTable(v.hidden, true, "test-findings")}` : ""}
+${filters ? `<div class="toolbar">${filters}<input class="search" type="search" placeholder="Filter by issue, rule or file" aria-label="Filter findings"></div>` : ""}
+<div id="issues">${v.issues.length ? v.issues.map(issueCard).join("\n") : `<p class="note">No issues found in the application's own code.</p>`}</div>
+${v.hidden.length ? `<p class="note">${v.hidden.length} further match${v.hidden.length === 1 ? "" : "es"} in test files and gitignored local env files ${v.hidden.length === 1 ? "is" : "are"} not included (<code>--include-tests</code> adds them).</p>` : ""}
 </section>
 
-${v.guidance.length ? `<section><h2><span>${no()}</span>Remediation plan</h2>
-<p class="lede">One action per rule, most severe first, with a manual check that confirms or rules out the lead. ${esc(R.verify_note)}</p>
-<table><thead><tr><th>#</th><th>Action</th><th>Rule</th><th class="num">Findings</th></tr></thead><tbody>${plan}</tbody></table></section>` : ""}
+${v.libraries.length ? `<section><h2><span>${no()}</span>Bundled third-party code</h2>
+<p class="lede">${v.thirdParty.length} matches are inside libraries copied into the repository. They are not counted as findings: the code belongs to the library, and the fix is to keep the library on a supported, patched release (or install it through a package manager) rather than edit it.</p>
+<table><thead><tr><th>Library path</th><th class="num">Files</th><th class="num">Matches</th><th>Rules</th></tr></thead><tbody>${libraries}</tbody></table></section>` : ""}
 
 <section><h2><span>${no()}</span>Control coverage</h2>
-<p class="lede">A control passes only when its enforcement is located in code and proven by a negative test; this scan never marks a control as passed. Signals show where enforcement probably lives (source / test files).</p>
-<table><thead><tr><th>Ref.</th><th>Control</th><th>Status</th><th class="num">Leads</th><th class="num">Signals</th><th>Look first</th></tr></thead>
-<tbody>${coverage}</tbody></table>
+<p class="lede">A control passes only when its enforcement is found in code and covered by a test. A scan cannot show that, so no control is marked as passed.</p>
+<table><thead><tr><th>Ref.</th><th>Control</th><th>Result</th><th>Findings</th></tr></thead><tbody>${coverage}</tbody></table>
 </section>
 
-${vibeHtml(result, no())}
+<section><h2><span>${no()}</span>Common implementation mistakes</h2>
+<p class="lede">Twelve mistakes that turn up most often in quickly built SaaS apps. "Not found" means no pattern matched.</p>
+<table><thead><tr><th>Ref.</th><th>Check</th><th>Result</th></tr></thead><tbody>${checklist}</tbody></table>
+</section>
 
-${standardsHtml(result, no())}
+<section><h2><span>${no()}</span>Standards</h2>
+<p class="lede">${esc(result.standards.note)}</p>
+${standards || `<p class="note">No findings to map.</p>`}
+${fws ? `<h3>Compliance frameworks (related requirements)</h3><table><tbody>${fws}</tbody></table>` : ""}
+</section>
 
-<section><h2><span>${no()}</span>Scope, method and limitations</h2>
-<ul class="notes">
-<li>Read-only static analysis on the local machine. No code was executed and nothing was sent anywhere.</li>
-${result.limitations.map((l) => `<li>${esc(l)}</li>`).join("")}
-<li>Findings are leads to validate. For verification, fixes and regression tests, run <code>/saas-security-audit:audit</code> in Claude Code.</li>
-</ul>
-<h3>Inventory</h3>
+<section><h2><span>${no()}</span>Scope and limitations</h2>
+<p>This is an automated static review. Each finding marks code that matches a known weak pattern; a reviewer should confirm it before it is treated as a vulnerability, using the "How to verify" step. ${esc(R.verify_note)}</p>
+<ul class="notes">${result.limitations.map((l) => `<li>${esc(l)}</li>`).join("")}</ul>
 <dl class="facts"><dt>Dependency manifests</dt><dd>${inv.manifests.map(esc).join(", ") || "None found"}</dd><dt>Test files</dt><dd>${inv.test_files}</dd><dt>CI files</dt><dd>${inv.ci_files.map(esc).join(", ") || "None found"}</dd></dl>
-<h3>Recommended tools</h3>
+<h3>Further checks worth running</h3>
 <table><thead><tr><th>Command</th><th>Purpose</th><th>Status</th><th>Network</th></tr></thead><tbody>${tools}</tbody></table>
 </section>
 
-<footer class="confidential"><span>Confidential · Prepared with saas-security-audit v${esc(VERSION)} · Secret values redacted</span><span>${esc(date)}</span></footer>
+<footer class="confidential"><span>Confidential · saas-security-audit v${esc(VERSION)} · secret values redacted</span><span>${esc(date)}</span></footer>
 </div>
 <script>
-(function(){var t=document.getElementById("main-findings");if(!t)return;var rows=[].slice.call(t.querySelectorAll("tr.f")),f="all",q="";
-function apply(){rows.forEach(function(r){var ok=(f==="all"||r.dataset.sev===f)&&(!q||r.dataset.q.indexOf(q)>-1);r.classList.toggle("hidden",!ok);});}
+(function(){var box=document.getElementById("issues");if(!box)return;var cards=[].slice.call(box.querySelectorAll(".issue")),f="all",q="";
+function apply(){cards.forEach(function(r){var ok=(f==="all"||r.dataset.sev===f)&&(!q||r.dataset.q.indexOf(q)>-1);r.classList.toggle("hidden",!ok);});}
 [].forEach.call(document.querySelectorAll(".filter"),function(b){b.addEventListener("click",function(){[].forEach.call(document.querySelectorAll(".filter"),function(x){x.classList.remove("on")});b.classList.add("on");f=b.dataset.f;apply();});});
 var s=document.querySelector(".search");if(s)s.addEventListener("input",function(){q=s.value.trim().toLowerCase();apply();});
 window.addEventListener("beforeprint",function(){[].forEach.call(document.querySelectorAll("details"),function(d){d.open=true});});})();

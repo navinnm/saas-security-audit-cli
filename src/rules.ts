@@ -23,6 +23,8 @@ interface RawRules {
   max_signal_locations: number;
   comment_prefixes: string[];
   report_markdown_header: string;
+  /** Second line of every Markdown report, so a later scan skips it. */
+  report_markdown_marker: string;
   report_json_marker: string;
   rules: {
     id: string; title: string; severity: string; confidence: string; controls: number[];
@@ -53,6 +55,8 @@ interface RawRules {
   vibe_checks: { id: string; title: string; rules: string[] }[];
   secret_guidance: Record<string, string>;
   verify: Record<string, string>;
+  /** What an attacker can do with each rule's weakness, in plain language (the "risk" paragraph of a report finding). */
+  risk: Record<string, string>;
   verify_note: string;
 }
 
@@ -102,6 +106,9 @@ export const RE = {
   localHost: rx(g.local_host_re),
   suppress: rx(g.suppress_re),
   testPath: rx(g.test_path_re),
+  thirdPartyDir: rx(g.third_party_dir_re),
+  thirdPartyFile: rx(g.third_party_file_re),
+  thirdPartyHeader: rx(g.third_party_header_re),
   exampleEnv: rx(g.example_env_re),
   webhookRoute: rx(g.webhook_route_re),
   webhookVerify: rx(g.webhook_verify_re),

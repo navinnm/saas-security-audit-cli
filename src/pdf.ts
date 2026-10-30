@@ -3,12 +3,11 @@
  * WinAnsi encoding, vector shapes, Flate-compressed pages, and running headers/footers.
  */
 import { deflateSync } from "node:zlib";
-import type { Finding } from "./engine.js";
 import type { Result } from "./report.js";
-import { standardsLabels } from "./standards.js";
-import { R } from "./rules.js";
+import { depsLine } from "./report.js";
+import { R, VERSION as RULES_VERSION } from "./rules.js";
 import { CLI_VERSION as VERSION } from "./version.js";
-import { buildView, CONTROL_SHORT, formatDate, SEVERITY_ORDER, type CoverageRow } from "./view.js";
+import { buildView, checklistLines, controlLabel, coverageLines, formatDate, SEVERITY_ORDER, standardSections, type Issue } from "./view.js";
 
 // ---------- low-level PDF writer ----------
 
@@ -214,8 +213,8 @@ const SEV: Record<string, { color: string; label: string }> = {
   Informational: { color: "#4b5563", label: "Informational" },
 };
 const RATING: Record<string, { label: string; color: string }> = {
-  critical: { label: "Critical risk", color: SEV.Critical.color }, high: { label: "Elevated risk", color: SEV.High.color },
-  medium: { label: "Moderate risk", color: SEV.Medium.color }, low: { label: "Low risk", color: C.ok },
+  critical: { label: "Critical", color: SEV.Critical.color }, high: { label: "High", color: SEV.High.color },
+  medium: { label: "Medium", color: SEV.Medium.color }, low: { label: "Low", color: C.ok },
 };
 
 class Layout {
@@ -247,7 +246,7 @@ class Layout {
 
   runningHeader(): void {
     const d = this.doc;
-    d.text(M, 36, "Security assessment report", "F2", 8, C.accent);
+    d.text(M, 36, "Source code security review", "F2", 8, C.accent);
     d.textRight(PAGE_W - M, 36, this.project, "F1", 8, C.muted);
     d.line(M, 44, PAGE_W - M, 44, C.rule2, 0.5);
   }
@@ -264,7 +263,7 @@ class Layout {
     });
   }
 
-  /** "3  Remediation plan" with a rule under it; numbered in the order sections appear. */
+  /** "3  Control coverage" with a rule under it; numbered in the order sections appear. */
   heading(title: string, intro?: string): void {
     this.ensure(intro ? 74 : 50);
     this.y += 18;
@@ -314,66 +313,87 @@ function sevMark(d: PdfDoc, x: number, baseline: number, sev: string, size = 8):
   d.text(x + size + 2, baseline, p.label, "F2", size, p.color);
 }
 
-const fRef = (i: number, total: number) => `F-${String(i + 1).padStart(Math.max(2, String(total).length), "0")}`;
+/** Locations printed per finding; the JSON output and `saas-audit show <rule>` have every one. */
+const MAX_LOCATIONS = 25;
 
-function findingsTable(L: Layout, findings: Finding[], withEvidence: boolean): void {
-  const cols = { ref: M + 6, sev: M + 44, body: M + 120, rule: M + CW - 6 };
-  const bodyW = cols.rule - 46 - cols.body;
-  const header = L.tableHeader([["Ref.", cols.ref], ["Severity", cols.sev], ["Finding and location", cols.body], ["Rule", cols.rule, "right"]]);
-  L.ensure(60);
-  header();
-  L.repeatOnNewPage(header);
-  findings.forEach((f, i) => {
-    const titleLines = wrap(f.title, "F2", 8.5, bodyW, 3);
-    const locText = `${f.file}:${f.line}${f.context === "source" ? "" : `  (${f.context})`}`;
-    const locLines = wrap(locText, "F3", 7.5, bodyW, 3);
-    const tags = standardsLabels(f.standards);
-    const metaLines = wrap(`C${f.controls[0]} ${CONTROL_SHORT[f.controls[0] - 1]} · confidence ${f.confidence}${tags.length ? " · " + tags.join(" · ") : ""}`, "F1", 7, bodyW);
-    const evLines = withEvidence ? wrap(f.evidence, "F3", 7, bodyW - 12, 3) : [];
-    const fixLines = withEvidence ? wrap(`Remediation: ${f.guidance}`, "F1", 7.5, bodyW, 4) : [];
-    const h = titleLines.length * 11 + locLines.length * 9.5 + metaLines.length * 9 + (evLines.length ? evLines.length * 9 + 10 : 0) + fixLines.length * 10 + 14;
-    L.ensure(h);
-    const top = L.y + 10;
-    L.doc.text(cols.ref, top, fRef(i, findings.length), "F3", 7.5, C.muted);
-    sevMark(L.doc, cols.sev, top, f.severity, 7.5);
-    L.doc.textRight(cols.rule, top, f.id, "F3", 7.5, C.muted);
-    let y = top;
-    for (const l of titleLines) { L.doc.text(cols.body, y, l, "F2", 8.5, C.ink); y += 11; }
-    for (const l of locLines) { L.doc.text(cols.body, y - 1, l, "F3", 7.5, C.body); y += 9.5; }
-    for (const l of metaLines) { L.doc.text(cols.body, y, l, "F1", 7, C.muted); y += 9; }
-    if (evLines.length) {
-      const boxH = evLines.length * 9 + 6;
-      L.doc.rect(cols.body, y - 4, bodyW, boxH, C.shade);
-      L.doc.rect(cols.body, y - 4, 1.5, boxH, C.rule2);
-      evLines.forEach((l, k) => L.doc.text(cols.body + 7, y + 5 + k * 9, l, "F3", 7, C.ink));
-      y += boxH + 4;
+/** One finding: heading row, facts, risk, locations with evidence, recommendation, verify step, references. */
+function issueBlock(L: Layout, i: Issue): void {
+  const d = L.doc;
+  const labelled = (label: string, text: string, color = C.body) => {
+    const lines = wrap(text, "F1", 8.5, CW);
+    L.ensure(14 + Math.min(lines.length, 3) * 11.5);
+    d.text(M, L.y + 8, label.toUpperCase(), "F2", 6.5, C.muted);
+    L.y += 12;
+    for (const l of lines) {
+      L.ensure(11.5);
+      d.text(M, L.y + 8.5, l, "F1", 8.5, color);
+      L.y += 11.5;
     }
-    for (const l of fixLines) { L.doc.text(cols.body, y + 2, l, "F1", 7.5, C.body); y += 10; }
-    L.y += h;
-    L.doc.line(M, L.y - 3, M + CW, L.y - 3, C.rule, 0.4);
-  });
-  L.repeatOnNewPage(null);
+    L.y += 4;
+  };
+  const titleLines = wrap(i.title, "F2", 11, CW - 130, 2);
+  L.ensure(46 + titleLines.length * 14);
   L.y += 6;
+  d.line(M, L.y, M + CW, L.y, C.rule2, 0.6);
+  L.y += 6;
+  d.text(M, L.y + 11, i.ref, "F3", 9, C.muted);
+  titleLines.forEach((l, k) => d.text(M + 44, L.y + 11 + k * 14, l, "F2", 11, C.ink));
+  const sw = textWidth(SEV[i.severity].label, "F2", 8.5) + 12;
+  sevMark(d, M + CW - sw, L.y + 11, i.severity, 8.5);
+  L.y += titleLines.length * 14 + 2;
+  const facts = `Confidence ${i.confidence} · ${controlLabel(i.controls[0])} · ${i.locations.length} location${i.locations.length === 1 ? "" : "s"} in ${i.files} file${i.files === 1 ? "" : "s"} · Rule ${i.id}`;
+  for (const l of wrap(facts, "F1", 7.5, CW - 44)) { d.text(M + 44, L.y + 8, l, "F1", 7.5, C.muted); L.y += 10; }
+  L.y += 6;
+  if (i.risk) labelled("Risk", i.risk);
+
+  L.ensure(30);
+  d.text(M, L.y + 8, "AFFECTED LOCATIONS", "F2", 6.5, C.muted);
+  L.y += 12;
+  for (const f of i.locations.slice(0, MAX_LOCATIONS)) {
+    const extra = [i.mixed ? f.severity : "", f.title !== i.title ? f.title : ""].filter(Boolean).join(" · ");
+    const locLines = wrap(`${f.file}:${f.line}${extra ? `  (${extra})` : ""}`, "F3", 7.5, CW, 2);
+    const evLines = wrap(f.evidence, "F3", 7, CW - 14, 3);
+    const boxH = evLines.length * 9 + 6;
+    L.ensure(locLines.length * 9.5 + boxH + 6);
+    locLines.forEach((l, k) => d.text(M, L.y + 8 + k * 9.5, l, "F3", 7.5, C.body));
+    L.y += locLines.length * 9.5 + 2;
+    d.rect(M, L.y, CW, boxH, C.shade);
+    d.rect(M, L.y, 1.5, boxH, C.rule2);
+    evLines.forEach((l, k) => d.text(M + 7, L.y + 9 + k * 9, l, "F3", 7, C.ink));
+    L.y += boxH + 5;
+  }
+  if (i.locations.length > MAX_LOCATIONS) {
+    L.ensure(14);
+    d.text(M, L.y + 8, `…and ${i.locations.length - MAX_LOCATIONS} more (saas-audit show ${i.id} lists them all)`, "F1", 8, C.muted);
+    L.y += 14;
+  }
+  L.y += 2;
+  labelled("Recommendation", i.guidance);
+  if (i.verify) labelled("How to verify", i.verify);
+  if (i.references.length) {
+    for (const l of wrap(i.references.join(" · "), "F1", 7.5, CW)) { L.ensure(10); d.text(M, L.y + 7.5, l, "F1", 7.5, C.muted); L.y += 10; }
+  }
+  L.y += 8;
 }
 
-function coverageTable(L: Layout, rows: CoverageRow[], leadsIds: Set<number>, noSignalIds: Set<number>): void {
-  const cols = { id: M + 6, name: M + 36, status: M + 300, leads: M + 408, sig: M + CW - 6 };
-  const header = L.tableHeader([["Ref.", cols.id], ["Control", cols.name], ["Status", cols.status], ["Leads", cols.leads, "right"], ["Signals src / test", cols.sig, "right"]]);
-  L.ensure(80);
+/** A plain table: header band, one wrapped line per cell, hairlines between rows. */
+function simpleTable(L: Layout, cols: Array<{ label: string; x: number; w: number; font?: FontKey; right?: boolean }>, rows: Array<Array<{ text: string; color?: string; font?: FontKey }>>): void {
+  const header = L.tableHeader(cols.map((c) => [c.label, c.right ? c.x + c.w : c.x, c.right ? "right" : "left"] as [string, number, ("left" | "right")?]));
+  L.ensure(40);
   header();
   L.repeatOnNewPage(header);
-  for (const r of rows) {
-    L.ensure(17);
-    const base = L.y + 10;
-    L.doc.text(cols.id, base, `C${r.id}`, "F3", 7.5, C.muted);
-    L.doc.text(cols.name, base, wrap(r.name, "F1", 8.5, cols.status - cols.name - 10, 1)[0], "F1", 8.5, C.ink);
-    const leads = leadsIds.has(r.id);
-    const label = leads ? "Leads to verify" : noSignalIds.has(r.id) ? "No signals found" : "Not verified";
-    L.doc.text(cols.status, base, label, leads ? "F2" : "F1", 8, leads ? C.warn : C.muted);
-    L.doc.textRight(cols.leads, base, r.leads ? String(r.leads) : "–", r.leads ? "F2" : "F1", 8.5, r.leads ? C.ink : C.faint);
-    L.doc.textRight(cols.sig, base, r.signals ? `${r.signals.source_count} / ${r.signals.test_count}` : "–", "F1", 8, C.muted);
-    L.y += 17;
-    L.doc.line(M, L.y - 3, M + CW, L.y - 3, C.rule, 0.3);
+  for (const row of rows) {
+    const cells = row.map((cell, k) => wrap(cell.text, cell.font ?? cols[k].font ?? "F1", 8, cols[k].w - 6, 4));
+    const h = Math.max(...cells.map((c) => c.length)) * 10.5 + 7;
+    L.ensure(h);
+    cells.forEach((lines, k) => lines.forEach((l, j) => {
+      const font = row[k].font ?? cols[k].font ?? "F1";
+      const y = L.y + 11 + j * 10.5;
+      if (cols[k].right) L.doc.textRight(cols[k].x + cols[k].w, y, l, font, 8, row[k].color ?? C.ink);
+      else L.doc.text(cols[k].x, y, l, font, 8, row[k].color ?? C.ink);
+    }));
+    L.y += h;
+    L.doc.line(M, L.y - 2, M + CW, L.y - 2, C.rule, 0.3);
   }
   L.repeatOnNewPage(null);
   L.y += 6;
@@ -384,25 +404,27 @@ export function renderPdf(result: Result, opts: { includeTests?: boolean; now?: 
   const L = new Layout(v.project);
   const d = L.doc;
   const date = formatDate(v.generatedAt);
+  const inv = result.inventory;
+  const own = result.stats.files_scanned - (inv.third_party_files ?? 0);
   L.firstPage();
 
   // Title block
   d.rect(M, 52, CW, 3.5, C.accent);
-  d.text(M, 80, "SECURITY ASSESSMENT REPORT  ·  CONFIDENTIAL", "F2", 7.5, C.accent);
-  const titleLines = wrap(`Static security review of ${v.project}`, "F2", 20, CW);
+  d.text(M, 80, "SOURCE CODE SECURITY REVIEW", "F2", 7.5, C.accent);
+  const titleLines = wrap(v.project, "F2", 20, CW);
   titleLines.forEach((l, i) => d.text(M, 106 + i * 24, l, "F2", 20, C.ink));
   L.y = 106 + (titleLines.length - 1) * 24 + 18;
   d.line(M, L.y, M + CW, L.y, C.rule, 0.5);
   L.y += 8;
   const meta: Array<[string, string, FontKey]> = [
-    ["Target", v.project, "F1"],
-    ["Location", result.root, "F3"],
+    ["Target", result.root, "F3"],
     ["Date", date, "F1"],
-    ["Method", "Read-only static analysis against 22 SaaS security controls; no code executed, no network access", "F1"],
-    ["Tool", `saas-security-audit v${VERSION}`, "F1"],
+    ["Scope", `${own} files of application code${inv.third_party_files ? `, ${inv.third_party_files} files in bundled libraries` : ""}; dependencies ${depsLine(result.dependencies)}`, "F1"],
+    ["Method", "Static source review: pattern rules plus code-flow analysis for JavaScript/TypeScript. Read-only; no code was run.", "F1"],
+    ["Tool", `saas-security-audit v${VERSION} (rules ${RULES_VERSION})`, "F1"],
   ];
   for (const [k, val, font] of meta) {
-    const lines = wrap(val, font, 8.5, CW - 110, 2);
+    const lines = wrap(val, font, 8.5, CW - 110, 3);
     d.text(M, L.y + 10, k, "F1", 8.5, C.muted);
     lines.forEach((l, i) => d.text(M + 110, L.y + 10 + i * 11, l, font, 8.5, C.ink));
     L.y += lines.length * 11 + 4;
@@ -410,210 +432,108 @@ export function renderPdf(result: Result, opts: { includeTests?: boolean; now?: 
   L.y += 4;
   d.line(M, L.y, M + CW, L.y, C.rule, 0.5);
 
-  // 1 Executive summary
-  L.heading("Executive summary");
+  // 1 Summary: rating and prose on the left, severity counts on the right, then the key findings.
+  L.heading("Summary");
   const colGap = 22;
-  const leftW = (CW - colGap) * 0.48;
+  const leftW = (CW - colGap) * 0.58;
   const rightX = M + leftW + colGap;
   const rightW = CW - leftW - colGap;
   const top = L.y;
   const rating = RATING[v.posture.level];
-  const ratingText = wrap(`${v.posture.headline}. ${v.posture.detail}`, "F1", 8.5, leftW - 24);
-  const boxH = 44 + ratingText.length * 11.5;
-  d.rect(M, top, leftW, boxH, "#ffffff");
-  d.line(M, top, M + leftW, top, C.rule2, 0.6);
-  d.line(M, top + boxH, M + leftW, top + boxH, C.rule2, 0.6);
-  d.line(M + leftW, top, M + leftW, top + boxH, C.rule2, 0.6);
-  d.rect(M, top, 3, boxH, rating.color);
-  d.text(M + 14, top + 15, "OVERALL RATING", "F2", 6.5, C.muted);
-  d.text(M + 14, top + 32, rating.label, "F2", 14, rating.color);
-  ratingText.forEach((l, i) => d.text(M + 14, top + 47 + i * 11.5, l, "F1", 8.5, C.body));
-  let ly = top + boxH + 12;
-  const facts: Array<[string, string]> = [["Files analysed", String(result.stats.files_scanned)], ["Controls with leads", `${v.controlsWithLeads} of 22`]];
-  if (v.hidden.length) facts.push(["Leads in test / local env files", String(v.hidden.length)]);
-  if (result.stats.suppressed) facts.push(["Suppressed inline", String(result.stats.suppressed)]);
-  if (v.stack.length) facts.push(["Stack detected", v.stack.join(", ")]);
-  for (const [k, val] of facts) {
-    const lines = wrap(val, "F2", 8.5, leftW - 130, 2);
-    d.text(M, ly + 9, k, "F1", 8.5, C.muted);
-    lines.forEach((l, i) => d.text(M + 130, ly + 9 + i * 11, l, "F2", 8.5, C.ink));
-    ly += lines.length * 11 + 3;
+  d.rect(M, top, 3, 34, rating.color);
+  d.text(M + 12, top + 12, "OVERALL RISK", "F2", 6.5, C.muted);
+  d.text(M + 12, top + 28, rating.label, "F2", 14, rating.color);
+  let ly = top + 46;
+  for (const p of v.summary) {
+    for (const l of wrap(p, "F1", 8.5, leftW)) { d.text(M, ly + 8.5, l, "F1", 8.5, C.ink); ly += 11.5; }
+    ly += 6;
   }
-
-  // Severity table on the right
   let ry = top;
   d.rect(rightX, ry, rightW, 17, C.shade);
   d.line(rightX, ry + 17, rightX + rightW, ry + 17, C.rule2, 0.5);
   d.text(rightX + 6, ry + 11.5, "SEVERITY", "F2", 6.5, C.muted);
-  d.textRight(rightX + 120, ry + 11.5, "FINDINGS", "F2", 6.5, C.muted);
+  d.textRight(rightX + rightW - 60, ry + 11.5, "ISSUES", "F2", 6.5, C.muted);
+  d.textRight(rightX + rightW - 6, ry + 11.5, "LOCATIONS", "F2", 6.5, C.muted);
   ry += 17;
-  const total = SEVERITY_ORDER.reduce((a, s) => a + (v.sourceCounts[s] ?? 0), 0);
   for (const sev of SEVERITY_ORDER) {
-    const n = v.sourceCounts[sev] ?? 0;
+    const list = v.issues.filter((i) => i.severity === sev);
+    const n = list.length;
     const base = ry + 13;
     if (n) sevMark(d, rightX + 6, base, sev, 8);
     else { d.rect(rightX + 6, base - 6.8, 6.4, 6.4, C.rule2); d.text(rightX + 16, base, SEV[sev].label, "F1", 8, C.faint); }
-    d.textRight(rightX + 120, base, String(n), n ? "F2" : "F1", 8.5, n ? C.ink : C.faint);
-    if (n && total) d.rect(rightX + 132, base - 5.5, ((rightW - 140) * n) / total, 4, SEV[sev].color);
+    d.textRight(rightX + rightW - 60, base, String(n), n ? "F2" : "F1", 8.5, n ? C.ink : C.faint);
+    d.textRight(rightX + rightW - 6, base, String(list.reduce((a, i) => a + i.locations.length, 0)), n ? "F1" : "F1", 8.5, n ? C.ink : C.faint);
     ry += 19;
     d.line(rightX, ry, rightX + rightW, ry, C.rule, 0.3);
   }
-  d.text(rightX + 6, ry + 13, "Total", "F2", 8.5, C.ink);
-  d.textRight(rightX + 120, ry + 13, String(total), "F2", 8.5, C.ink);
-  ry += 22;
-  for (const l of wrap("Findings in application source code. Test files and gitignored local env files are reported separately.", "F1", 7, rightW)) {
-    d.text(rightX, ry + 7, l, "F1", 7, C.muted);
-    ry += 9.5;
+  if (v.stack.length) {
+    for (const l of wrap(`Stack: ${v.stack.join(", ")}`, "F1", 7.5, rightW)) { d.text(rightX, ry + 12, l, "F1", 7.5, C.muted); ry += 10; }
   }
-  L.y = Math.max(ly, ry) + 6;
+  L.y = Math.max(ly, ry) + 8;
+  if (v.issues.length) {
+    L.sub("Key findings");
+    simpleTable(L, [{ label: "Ref.", x: M + 6, w: 40, font: "F3" }, { label: "Issue", x: M + 50, w: 300 }, { label: "Severity", x: M + 360, w: 80 }, { label: "Locations", x: M + CW - 66, w: 60, right: true }],
+      v.issues.map((i) => [{ text: i.ref, color: C.muted }, { text: i.title }, { text: i.severity, color: SEV[i.severity].color, font: "F2" }, { text: String(i.locations.length) }]));
+  }
 
   // 2 Findings
-  L.heading("Findings", "Each finding is a lead to confirm in code, not a confirmed vulnerability. Evidence is redacted; secret values never appear in this report.");
-  if (v.shown.length) findingsTable(L, v.shown, true);
-  else L.para("No leads in source code. This is not evidence that the application is secure; the controls under Control coverage still need verification.", 9, C.muted);
-  if (v.hidden.length) {
-    L.sub(`Test files & local env files (${v.hidden.length})`);
-    L.para("Usually intentional samples (fixtures, mocks) or secrets in gitignored local env files. Not counted in the totals above.", 8, C.muted);
-    findingsTable(L, v.hidden, false);
+  L.heading("Findings");
+  if (!v.issues.length) L.para("No issues found in the application's own code.", 9, C.muted);
+  for (const i of v.issues) issueBlock(L, i);
+  if (v.hidden.length) L.para(`${v.hidden.length} further match${v.hidden.length === 1 ? "" : "es"} in test files and gitignored local env files ${v.hidden.length === 1 ? "is" : "are"} not included (--include-tests adds them).`, 8, C.muted);
+
+  // Bundled libraries
+  if (v.libraries.length) {
+    L.heading("Bundled third-party code", `${v.thirdParty.length} matches are inside libraries copied into the repository. They are not counted as findings: the code belongs to the library, and the fix is to keep the library on a supported, patched release (or install it through a package manager) rather than edit it.`);
+    simpleTable(L, [{ label: "Library path", x: M + 6, w: 260, font: "F3" }, { label: "Files", x: M + 270, w: 40, right: true }, { label: "Matches", x: M + 316, w: 46, right: true }, { label: "Rules", x: M + 376, w: CW - 380, font: "F3" }],
+      v.libraries.map((l) => [{ text: l.path }, { text: String(l.files) }, { text: String(l.matches) }, { text: l.rules.join(", "), color: C.muted }]));
   }
 
-  // 3 Remediation plan
-  if (v.guidance.length) {
-    L.heading("Remediation plan", `One action per rule, most severe first, with a manual check that confirms or rules out the lead. ${R.verify_note}`);
-    const cols = { no: M + 6, act: M + 30, rule: M + CW - 100, n: M + CW - 6 };
-    const header = L.tableHeader([["#", cols.no], ["Action", cols.act], ["Rule", cols.rule], ["Findings", cols.n, "right"]]);
-    header();
-    L.repeatOnNewPage(header);
-    v.guidance.forEach((g, i) => {
-      const lines = wrap(g.guidance, "F1", 8, cols.rule - cols.act - 12);
-      const tl = wrap(g.title, "F2", 8.5, cols.rule - cols.act - 12, 2);
-      const vl = g.verify ? wrap(`Verify: ${g.verify}`, "F1", 7.5, cols.rule - cols.act - 12) : [];
-      const h = tl.length * 11 + lines.length * 10.5 + (vl.length ? vl.length * 10 + 3 : 0) + 10;
-      L.ensure(h);
-      const b = L.y + 10;
-      d.text(cols.no, b, String(i + 1), "F1", 8, C.muted);
-      tl.forEach((l, k) => d.text(cols.act, b + k * 11, l, "F2", 8.5, C.ink));
-      lines.forEach((l, k) => d.text(cols.act, b + tl.length * 11 + k * 10.5, l, "F1", 8, C.body));
-      vl.forEach((l, k) => d.text(cols.act, b + tl.length * 11 + lines.length * 10.5 + 3 + k * 10, l, "F1", 7.5, C.muted));
-      d.text(cols.rule, b, g.id, "F3", 7.5, C.muted);
-      d.textRight(cols.n, b, String(g.count), "F1", 8.5, C.ink);
-      L.y += h;
-      d.line(M, L.y - 3, M + CW, L.y - 3, C.rule, 0.3);
-    });
-    L.repeatOnNewPage(null);
+  // Control coverage
+  L.heading("Control coverage", "A control passes only when its enforcement is found in code and covered by a test. A scan cannot show that, so no control is marked as passed.");
+  simpleTable(L, [{ label: "Ref.", x: M + 6, w: 30, font: "F3" }, { label: "Control", x: M + 38, w: 236 }, { label: "Result", x: M + 278, w: 150 }, { label: "Findings", x: M + 432, w: CW - 436, font: "F3" }],
+    coverageLines(result, v.issues).map((c) => [{ text: `C${c.id}`, color: C.muted }, { text: c.name }, { text: c.result, color: c.found ? C.warn : C.muted, font: c.found ? "F2" : "F1" }, { text: c.refs.join(", ") || "–", color: C.muted }]));
+
+  // Common implementation mistakes
+  L.heading("Common implementation mistakes", "Twelve mistakes that turn up most often in quickly built SaaS apps. \"Not found\" means no pattern matched.");
+  simpleTable(L, [{ label: "Ref.", x: M + 6, w: 30, font: "F3" }, { label: "Check", x: M + 38, w: 300 }, { label: "Result", x: M + 345, w: CW - 349 }],
+    checklistLines(result, v.issues).map((c) => [{ text: c.id, color: C.muted }, { text: c.title }, c.refs.length ? { text: `Found: ${c.refs.join(", ")}`, color: C.warn, font: "F2" } : { text: "Not found", color: C.muted }]));
+
+  // Standards
+  L.heading("Standards", result.standards.note);
+  const sections = standardSections(result, v.issues).filter((sec) => sec.rows.length);
+  if (!sections.length) L.para("No findings to map.", 8.5, C.muted);
+  for (const sec of sections) {
+    L.sub(sec.title);
+    simpleTable(L, [{ label: "ID", x: M + 6, w: 66, font: "F3" }, { label: sec.kind, x: M + 76, w: 300 }, { label: "Findings", x: M + 380, w: CW - 384, font: "F3" }],
+      sec.rows.map((r) => [{ text: r.id }, { text: r.name }, { text: r.refs.join(", "), color: C.muted }]));
+  }
+  const fws = result.standards.frameworks.filter((fw) => fw.requirements.length);
+  if (fws.length) {
+    L.sub("Compliance frameworks (related requirements)");
+    simpleTable(L, [{ label: "Framework", x: M + 6, w: 140, font: "F2" }, { label: "Requirements", x: M + 150, w: CW - 154 }],
+      fws.map((fw) => [{ text: fw.name }, { text: fw.requirements.map((r) => `${r.ref}${r.name ? " " + r.name : ""}`).join("; "), color: C.body }]));
   }
 
-  // 4 Control coverage
-  L.heading("Control coverage", "A control passes only when its enforcement is located in code and proven by a negative test; this scan never marks a control as passed. Signals show where enforcement probably lives (source / test files).");
-  const rows = [...v.coverage.leads, ...v.coverage.noSignals, ...v.coverage.notVerified].sort((a, b) => a.id - b.id);
-  coverageTable(L, rows, new Set(v.coverage.leads.map((r) => r.id)), new Set(v.coverage.noSignals.map((r) => r.id)));
-
-  // 5 Vibe-code review
-  const found = result.vibe_review.filter((x) => x.status === "found").length;
-  L.heading("Vibe-code review", `Patterns common in AI-generated code. ${found} of ${result.vibe_review.length} were matched. "Not matched" means no lead was found; it is not a pass.`);
-  {
-    const cols = { t: M + 6, rules: M + 250, res: M + 380, n: M + CW - 6 };
-    const header = L.tableHeader([["Pattern", cols.t], ["Rules", cols.rules], ["Result", cols.res], ["Leads", cols.n, "right"]]);
-    header();
-    L.repeatOnNewPage(header);
-    for (const x of result.vibe_review) {
-      L.ensure(17);
-      const b = L.y + 10;
-      const hit = x.status === "found";
-      d.text(cols.t, b, wrap(x.title, "F1", 8.5, cols.rules - cols.t - 10, 1)[0], "F1", 8.5, C.ink);
-      d.text(cols.rules, b, wrap(x.rules.join(", "), "F3", 7, cols.res - cols.rules - 8, 1)[0], "F3", 7, C.muted);
-      d.text(cols.res, b, hit ? "Matched" : "Not matched", hit ? "F2" : "F1", 8, hit ? C.warn : C.muted);
-      d.textRight(cols.n, b, hit ? String(x.leads) : "–", hit ? "F2" : "F1", 8.5, hit ? C.ink : C.faint);
-      L.y += 17;
-      d.line(M, L.y - 3, M + CW, L.y - 3, C.rule, 0.3);
-    }
-    L.repeatOnNewPage(null);
-  }
-
-  // 6 Standards mapping
-  const st = result.standards;
-  L.heading("Standards mapping", st.note);
-  const stdTable = (title: string, rs: typeof st.owasp_top10_2021, kind = "Category") => {
-    L.sub(title);
-    const cols = { id: M + 6, name: M + 56, n: M + 310, rules: M + 324 };
-    const header = L.tableHeader([["ID", cols.id], [kind, cols.name], ["Leads", cols.n, "right"], ["Rules", cols.rules]]);
-    header();
-    L.repeatOnNewPage(header);
-    for (const r of rs) {
-      L.ensure(15);
-      const b = L.y + 9.5;
-      d.text(cols.id, b, r.id, "F3", 7.5, r.leads ? C.ink : C.muted);
-      d.text(cols.name, b, wrap(r.name, "F1", 8, cols.n - cols.name - 24, 1)[0], "F1", 8, C.ink);
-      d.textRight(cols.n, b, r.checked ? (r.leads ? String(r.leads) : "–") : "–", r.leads ? "F2" : "F1", 8, r.leads ? C.ink : C.faint);
-      d.text(cols.rules, b, wrap(r.checked ? r.rules.join(", ") : "Not covered by this scanner", "F3", 6.5, M + CW - cols.rules, 1)[0], "F3", 6.5, C.muted);
-      L.y += 15;
-      d.line(M, L.y - 2.5, M + CW, L.y - 2.5, C.rule, 0.3);
-    }
-    L.repeatOnNewPage(null);
-    L.y += 4;
-  };
-  stdTable("OWASP Top 10 (2021)", st.owasp_top10_2021);
-  stdTable("OWASP API Security Top 10 (2023)", st.owasp_api_2023);
-  stdTable("OWASP Top 10 for LLM Applications (2025)", st.owasp_llm_2025);
-  L.sub("CWE");
-  if (!st.cwe.length) L.para("No CWE-mapped leads in source code.", 8, C.muted);
-  else {
-    const cols = { id: M + 6, name: M + 70, n: M + 380, top: M + 396 };
-    const header = L.tableHeader([["CWE", cols.id], ["Weakness", cols.name], ["Leads", cols.n, "right"], ["CWE Top 25 (2024)", cols.top]]);
-    header();
-    L.repeatOnNewPage(header);
-    for (const x of st.cwe) {
-      L.ensure(15);
-      const b = L.y + 9.5;
-      d.text(cols.id, b, x.id, "F3", 7.5, C.ink);
-      d.text(cols.name, b, wrap(x.name, "F1", 8, cols.n - cols.name - 24, 1)[0], "F1", 8, C.ink);
-      d.textRight(cols.n, b, String(x.leads), "F2", 8, C.ink);
-      d.text(cols.top, b, x.top25 ? "Yes" : "–", "F1", 8, x.top25 ? C.ink : C.faint);
-      L.y += 15;
-      d.line(M, L.y - 2.5, M + CW, L.y - 2.5, C.rule, 0.3);
-    }
-    L.repeatOnNewPage(null);
-  }
-  L.sub("Compliance frameworks (related requirements)");
-  for (const fw of st.frameworks) {
-    const text = fw.requirements.map((r) => `${r.ref}${r.name ? " " + r.name : ""} (${r.leads})`).join("  ·  ") || "No related leads in source code";
-    const lines = wrap(text, "F1", 8, CW - 150);
-    L.ensure(lines.length * 11 + 8);
-    d.text(M + 6, L.y + 9, fw.name, "F2", 8, C.ink);
-    lines.forEach((l, i) => d.text(M + 150, L.y + 9 + i * 11, l, "F1", 8, fw.requirements.length ? C.body : C.muted));
-    L.y += lines.length * 11 + 6;
-    d.line(M, L.y - 2, M + CW, L.y - 2, C.rule, 0.3);
-  }
-  L.y += 6;
-  for (const [title, kind, rows] of [[`MITRE ATT&CK (v${st.versions.attack})`, "Technique", st.mitre_attack],
-    [`MITRE ATLAS (${st.versions.atlas})`, "Technique", st.mitre_atlas], [`MITRE D3FEND (${st.versions.d3fend}) countermeasures`, "Countermeasure", st.mitre_d3fend]] as const) {
-    stdTable(title, rows.map((t) => ({ ...t, checked: true })), kind);
-  }
-
-  // 7 Scope, method and limitations
-  L.heading("Scope, method and limitations");
-  const notes = [
-    "Read-only static analysis on the local machine. No code was executed and nothing was sent anywhere.",
-    ...result.limitations,
-    "Findings are leads to validate. For verification, fixes and regression tests, run /saas-security-audit:audit in Claude Code.",
-  ];
-  for (const n of notes) {
+  // Scope and limitations
+  L.heading("Scope and limitations");
+  L.para(`This is an automated static review. Each finding marks code that matches a known weak pattern; a reviewer should confirm it before it is treated as a vulnerability, using the "How to verify" step. ${R.verify_note}`, 8.5, C.body);
+  for (const n of result.limitations) {
     const lines = wrap(n, "F1", 8.5, CW - 12);
     L.ensure(lines.length * 12 + 4);
     d.text(M, L.y + 9, "–", "F1", 8.5, C.muted);
     lines.forEach((l, i) => d.text(M + 12, L.y + 9 + i * 12, l, "F1", 8.5, C.body));
     L.y += lines.length * 12 + 3;
   }
-  const inv = result.inventory;
-  L.sub("Inventory");
+  L.y += 6;
   for (const [k, val] of [["Dependency manifests", inv.manifests.join(", ") || "None found"], ["Test files", String(inv.test_files)], ["CI files", inv.ci_files.join(", ") || "None found"]] as const) {
-    const lines = wrap(val, "F1", 8.5, CW - 130);
+    const lines = wrap(val, "F1", 8.5, CW - 130, 4);
     L.ensure(lines.length * 11 + 4);
     d.text(M, L.y + 9, k, "F1", 8.5, C.muted);
     lines.forEach((l, i) => d.text(M + 130, L.y + 9 + i * 11, l, "F1", 8.5, C.ink));
     L.y += lines.length * 11 + 3;
   }
-  L.sub("Recommended tools");
+  L.sub("Further checks worth running");
   for (const t of inv.recommended_tools) {
     L.ensure(15);
     d.text(M + 6, L.y + 9, t.command, "F3", 7.5, C.ink);
@@ -623,5 +543,5 @@ export function renderPdf(result: Result, opts: { includeTests?: boolean; now?: 
   }
 
   L.footers(date);
-  return d.build({ title: `Security assessment — ${v.project}`, subject: `Static security review of ${result.root}` });
+  return d.build({ title: `Security review — ${v.project}`, subject: `Source code security review of ${result.root}` });
 }

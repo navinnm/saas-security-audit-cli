@@ -172,7 +172,7 @@ test("standards and vibe review in terminal, CI text, HTML and PDF", async () =>
     const pretty = spawnSync("node", [CLI, root, "--format", "pretty", "--no-update-check"], { encoding: "utf8", env: { ...process.env, NO_COLOR: "1" } }).stdout;
     for (const s of ["VIBE-CODE REVIEW", "STANDARDS", "API Top 10", "LLM Top 10", "ATT&CK", "Frameworks", "OWASP A03:2021 · CWE-89"]) assert.ok(pretty.includes(s), `missing ${s}`);
     const html = renderHtml(result);
-    for (const s of ["Vibe-code review", "OWASP Top 10 (2021)", "OWASP API Security Top 10 (2023)", "Compliance frameworks", "does not demonstrate compliance"]) {
+    for (const s of ["Common implementation mistakes", "OWASP Top 10 (2021)", "OWASP API Security Top 10 (2023)", "Compliance frameworks", "does not show compliance"]) {
       assert.ok(html.includes(s), `html missing ${s}`);
     }
     const pdf = renderPdf(result).toString("latin1");
@@ -199,7 +199,7 @@ test("MITRE ATT&CK, ATLAS, D3FEND and NIST CSF mappings, and the Navigator layer
     assert.equal(result.standards.mitre_attack[0].leads >= result.standards.mitre_attack.at(-1).leads, true, "leads first");
     assert.ok(result.standards.frameworks.some((f) => f.id === "nist_csf" && f.requirements.length));
     const md = markdown(result);
-    for (const s of ["### MITRE ATT&CK (v", "### MITRE ATLAS (", "### MITRE D3FEND (", "**NIST CSF 2.0:**", "· T1190"]) assert.ok(md.includes(s), `md missing ${s}`);
+    for (const s of ["**MITRE ATT&CK (v", "**MITRE ATLAS (", "**MITRE D3FEND (", "- NIST CSF 2.0: ", "ATT&CK T1190"]) assert.ok(md.includes(s), `md missing ${s}`);
     const html = renderHtml(result);
     for (const s of ["MITRE ATT&amp;CK (v", "ATT&amp;CK T1190", "D3FEND D3-"]) assert.ok(html.includes(s), `html missing ${s}`);
 
@@ -225,10 +225,11 @@ test("every rule has a manual verify step, shown in Markdown, HTML, PDF plan and
   await withResult({ ...FIXTURES.vulnerableSaas, ...FIXTURES.vibeCoded }, (result) => {
     assert.ok(result.findings.every((f) => f.verify === R.verify[f.id]));
     const md = markdown(result);
-    assert.ok(md.includes(`Verify: ${R.verify.SEC003}`));
+    assert.ok(md.includes(`**How to verify.** ${R.verify.SEC003}`));
+    assert.ok(md.includes(`**Risk.** ${R.risk.SEC003}`));
     assert.ok(md.includes(R.verify_note));
     const html = renderHtml(result);
-    assert.ok(html.includes('<div class="verify"><b>Verify:</b>'));
+    assert.ok(html.includes(`<h4>How to verify</h4><p>${R.verify.SEC003.replace(/'/g, "&#39;").replace(/"/g, "&quot;")}`));
     const show = plain(showRule("SEC003", result.findings, 100).join("\n"));
     assert.match(show, /✓ Verify: On staging, put a single quote/);
   });

@@ -28,7 +28,9 @@ export interface ScanState {
   files_scanned: number; skipped_large_lines: number; suppressed: Finding[];
   signals: Record<number, Signal>; manifests: string[];
   env_files: { file: string; gitignored: boolean; example: boolean }[];
-  test_files: number; ci_files: string[]; packages: Record<string, [number, string]>;
+  test_files: number; third_party_files: number;
+  /** Bundled library folders (or single files) and how many analysed files each holds. */
+  third_party: { path: string; files: number }[]; ci_files: string[]; packages: Record<string, [number, string]>;
   /** Dependency check (deps.ts): what was checked online, or why it wasn't. */
   deps?: DepStatus | { skipped: string };
   /** Whether test files and gitignored env files were read (--include-tests). */
@@ -206,7 +208,7 @@ export function makeFinding(id: string, title: string, severity: string, confide
   return f;
 }
 
-export const gateCounts = (f: Finding) => f.context === "source" || (f.context === "test" && f.id === "SEC012");
+export const gateCounts = (f: Finding) => f.context === "source" || ((f.context === "test" || f.context === "third-party") && f.id === "SEC012");
 
 // ---------- files ----------
 
@@ -312,16 +314,50 @@ function walk(root: string): WalkedFile[] {
 }
 
 /** A report this scanner wrote (Markdown or JSON); re-scanning it would flag quoted evidence. */
+/** Bundled library code: vendored folders, minified bundles, and files that open with an open-source licence header. */
+export function isThirdParty(rel: string, lines: string[]): boolean {
+  if (rel.split("/").slice(0, -1).some((p) => RE.thirdPartyDir.test(p)) || RE.thirdPartyFile.test(rel)) return true;
+  const head = lines.slice(0, 40);
+  // Minified script or stylesheet: hand-written code rarely has a line this long.
+  if (/\.(?:js|mjs|cjs|css)$/i.test(rel) && head.some((l) => l.length > 2000)) return true;
+  return RE.thirdPartyHeader.test(head.join("\n"));
+}
+
+/** Languages with C-style block comments: lines inside a block that opens at line start are comments too. */
+const BLOCK_COMMENT_EXTS = new Set([".js", ".jsx", ".mjs", ".cjs", ".ts", ".tsx", ".vue", ".svelte", ".php", ".java", ".kt",
+  ".go", ".cs", ".c", ".cc", ".cpp", ".h", ".swift", ".rs", ".scala", ".dart", ".css", ".scss", ".less"]);
+
+/**
+ * Group bundled files by library: each file climbs to the highest folder that holds none of the
+ * project's own code (application/third_party, system/), or stays a single file (assets/js/jquery.js).
+ */
+export function libraryRoots(vendored: string[], own: string[]): { path: string; files: number }[] {
+  const ownDirs = new Set<string>();
+  for (const rel of own) {
+    const parts = rel.split("/");
+    for (let i = 0; i < parts.length; i++) ownDirs.add(parts.slice(0, i).join("/"));
+  }
+  const roots = new Map<string, number>();
+  for (const rel of vendored) {
+    const parts = rel.split("/");
+    let k = parts.length;
+    while (k > 1 && !ownDirs.has(parts.slice(0, k - 1).join("/"))) k--;
+    const root = parts.slice(0, k).join("/");
+    roots.set(root, (roots.get(root) ?? 0) + 1);
+  }
+  return [...roots.entries()].map(([path, files]) => ({ path, files })).sort((a, b) => b.files - a.files || (a.path < b.path ? -1 : 1));
+}
+
 export function isOwnReport(lines: string[]): boolean {
   const head = lines.slice(0, 4).join("\n");
-  return head.startsWith(R.report_markdown_header) || head.includes(R.report_json_marker);
+  return head.startsWith(R.report_markdown_header) || head.includes(R.report_markdown_marker) || head.includes(R.report_json_marker);
 }
 
 export function newState(): ScanState {
   const signals: Record<number, Signal> = {};
   for (const [cid] of CONTROL_SIGNALS) signals[cid] = { source: [], source_count: 0, test_count: 0 };
   return { files_scanned: 0, skipped_large_lines: 0, suppressed: [], signals, manifests: [], env_files: [],
-    test_files: 0, ci_files: [], packages: {} };
+    test_files: 0, third_party_files: 0, third_party: [], ci_files: [], packages: {} };
 }
 
 const isDir = (p: string) => { try { return statSync(p).isDirectory(); } catch { return false; } };
@@ -352,6 +388,8 @@ export async function scan(root: string, state: ScanState = newState(), ev: Scan
   const promptFiles: [string, number][] = [];   // client-side files that hold an LLM system prompt (SEC062)
   /** JS/TS application source for the code-flow analysis (flow.ts). */
   const flowFiles: (FlowFile & { lines: string[] })[] = [];
+  const vendoredFiles: string[] = [];
+  const ownFiles: string[] = [];
   const supabase = isDir(join(root, "supabase"));
 
   ev.onPhase?.("discover");
@@ -391,8 +429,15 @@ export async function scan(root: string, state: ScanState = newState(), ev: Scan
     if (lines === null || isOwnReport(lines)) continue;
     state.files_scanned++;
     if (inTest && category === "code") state.test_files++;
-    if (category === "code" && !inTest && FLOW_EXTS.has(ext)) flowFiles.push({ rel, ext, text: lines.join("\n"), lines });
-    let context = inTest ? "test" : "source";
+    // Bundled libraries are scanned but reported apart: they are updated, not reviewed line by line.
+    const vendored = !inTest && category === "code" && isThirdParty(rel, lines);
+    if (vendored) {
+      state.third_party_files++;
+      vendoredFiles.push(rel);
+    } else if (!inTest && category === "code") ownFiles.push(rel);
+    const own = !inTest && !vendored;
+    if (category === "code" && own && FLOW_EXTS.has(ext)) flowFiles.push({ rel, ext, text: lines.join("\n"), lines });
+    let context = inTest ? "test" : vendored ? "third-party" : "source";
     if (category === "env") {
       const example = RE.exampleEnv.test(name);
       const ignored = isIgnored(rel, ignorePats);
@@ -400,8 +445,10 @@ export async function scan(root: string, state: ScanState = newState(), ev: Scan
       if (ignored && !example) context = "ignored-local-env";
     }
     if (R.manifests[name]) recordPackages(name, lines, state.packages);
-    let firstWebhookLine: number | null = category === "code" && !inTest && rel.toLowerCase().includes("webhook") ? 1 : null;
+    let firstWebhookLine: number | null = category === "code" && own && rel.toLowerCase().includes("webhook") ? 1 : null;
 
+    const blockComments = BLOCK_COMMENT_EXTS.has(ext);
+    let inBlock = false;
     for (let i = 0; i < lines.length; i++) {
       const number = i + 1;
       const line = lines[i];
@@ -409,7 +456,12 @@ export async function scan(root: string, state: ScanState = newState(), ev: Scan
         state.skipped_large_lines++;
         continue;
       }
-      const isComment = COMMENT_PREFIXES.some((p) => pyLstrip(line).startsWith(p)) && category !== "env";
+      const trimmed = pyLstrip(line);
+      const isComment = (inBlock || COMMENT_PREFIXES.some((p) => trimmed.startsWith(p))) && category !== "env";
+      if (blockComments) {
+        if (inBlock) inBlock = !line.includes("*/");
+        else if (trimmed.startsWith("/*") && !trimmed.includes("*/", 2)) inBlock = true;
+      }
       const hits: [string, string, string, string, number[], string][] =
         secretHits(line, category).map(([id, title, sev, conf]) => [id, title, sev, conf, [15], SECRET_GUIDANCE[id]]);
       for (const rule of RULES) {
@@ -435,7 +487,7 @@ export async function scan(root: string, state: ScanState = newState(), ev: Scan
           if (re.test(line)) {
             const sig = state.signals[cid];
             if (inTest) sig.test_count++;
-            else {
+            else if (own) {
               sig.source_count++;
               if (sig.source.length < R.max_signal_locations && !sig.source.some((s) => s.startsWith(rel + ":"))) {
                 sig.source.push(`${rel}:${number}`);
@@ -444,7 +496,7 @@ export async function scan(root: string, state: ScanState = newState(), ev: Scan
           }
         }
       }
-      if (category === "code" && !inTest && firstWebhookLine === null && RE.webhookRoute.test(line)) firstWebhookLine = number;
+      if (category === "code" && own && firstWebhookLine === null && RE.webhookRoute.test(line)) firstWebhookLine = number;
     }
     if (category === "sql" || ext === ".prisma" || (category === "code" && lines.some((l) => l.includes("pgTable(")))) {
       schemaFiles.push([rel, ext, lines, inTest]);
@@ -453,7 +505,7 @@ export async function scan(root: string, state: ScanState = newState(), ev: Scan
       const text = lines.join("\n");
       webhookFiles.push([rel, firstWebhookLine, RE.webhookVerify.test(text), RE.webhookIdempotency.test(text)]);
     }
-    if (category === "code" && !inTest) {
+    if (category === "code" && own) {
       const at = (re: RegExp) => lines.findIndex((l) => re.test(l) && !COMMENT_PREFIXES.some((p) => pyLstrip(l).startsWith(p)));
       const socket = at(RE.websocketServer);
       if (socket >= 0 && !RE.websocketAuth.test(lines.join("\n"))) socketFiles.push([rel, socket + 1]);
@@ -463,6 +515,7 @@ export async function scan(root: string, state: ScanState = newState(), ev: Scan
     }
   }
 
+  state.third_party = libraryRoots(vendoredFiles, ownFiles);
   ev.onPhase?.("analyze");
   // Code-flow analysis (SEC044–SEC049). SAAS_AUDIT_ENGINE=regex turns it off (line rules only).
   if (process.env.SAAS_AUDIT_ENGINE !== "regex" && !opts.signal?.aborted) {

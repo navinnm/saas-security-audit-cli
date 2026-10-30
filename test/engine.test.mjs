@@ -6,10 +6,10 @@ import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { existsSync, mkdtempSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { dirname, join, resolve } from "node:path";
+import { basename, dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { FAKE, FIXTURES, jwt } from "./fixtures.mjs";
-import { fnmatch, gateCounts, newState, scan, splitlines } from "../dist/engine.js";
+import { fnmatch, gateCounts, isOwnReport, libraryRoots, newState, scan, splitlines } from "../dist/engine.js";
 import { buildResult, markdown } from "../dist/report.js";
 
 const CLI = resolve(dirname(fileURLToPath(import.meta.url)), "../dist/cli.js");
@@ -132,14 +132,14 @@ test("suppression, test context, skipped files", async () => {
   });
 });
 
-test("node_modules is skipped and controls stay NOT VERIFIED", async () => {
+test("node_modules is skipped and no control is marked as passed", async () => {
   await withRepo({ "node_modules/bad.js": "eval(userInput)\n" }, async (root) => {
     const state = newState();
     const found = await scan(root, state);
     assert.deepEqual(found, []);
     const md = markdown(buildResult(root, found, state));
-    assert.ok(md.includes("does **not** mean the project is secure"));
-    assert.ok(md.includes("| 22 | AI/LLM security and prompt injection | NOT VERIFIED |"));
+    assert.ok(md.includes("found no issues. That does not show the code is secure"));
+    assert.ok(md.includes("| C22 | AI/LLM security and prompt injection | None found · no related code | – |"));
     assert.ok(!md.includes("| PASS |"));
   });
 });
@@ -195,8 +195,9 @@ test("summary separates source from tests", async () => {
     assert.equal(result.stats.by_severity.High, 4);
     assert.equal(result.stats.by_severity_source.High, 1);
     const md = markdown(result);
-    assert.ok(md.includes("| High | 1 | 4 |"));
-    assert.ok(md.includes("excludes 3 lead(s) in test paths"));
+    assert.ok(md.includes("| F-01 | Dynamic code evaluation | High | 1 |"));
+    assert.ok(md.includes("3 matches in test files and gitignored local env files are not counted"));
+    assert.ok(markdown(result, { includeTests: true }).includes("| F-01 | Dynamic code evaluation | High | 3 |"));
   });
 });
 
@@ -247,7 +248,8 @@ test("PDF and HTML reports", async () => {
     assert.ok(!/(?:src|href)=["']?https?:/i.test(html), "report must not load anything from the network");
     assert.ok(!html.includes("<script>alert(1)</script>"), "evidence must be HTML-escaped");
     assert.ok(html.includes("&lt;script&gt;alert(1)&lt;/script&gt;"));
-    assert.ok(html.includes("Test files &amp; local env files"));
+    assert.ok(html.includes("in test files and gitignored local env files"));
+    assert.ok(html.includes('<article class="issue"'));
   });
 });
 
@@ -261,7 +263,9 @@ test("CLI writes multiple report formats from --output extensions", async () => 
     assert.ok(readFileSync(join(out, "r.pdf")).subarray(0, 5).toString() === "%PDF-");
     assert.ok(readFileSync(join(out, "r.html"), "utf8").startsWith("<!doctype html>"));
     assert.equal(JSON.parse(readFileSync(join(out, "r.json"), "utf8")).findings[0].id, "SEC002");
-    assert.ok(readFileSync(join(out, "r.md"), "utf8").startsWith("# Local SaaS Security Heuristic Scan"));
+    const md = readFileSync(join(out, "r.md"), "utf8");
+    assert.ok(md.startsWith(`# Security review: ${basename(root)}\n<!-- saas-security-audit report -->`));
+    assert.ok(isOwnReport(md.split("\n")), "a later scan skips its own Markdown report");
     assert.equal(spawnSync("node", [CLI, root, "--format", "pdf"]).status, 2, "PDF to stdout is refused");
   });
 });
@@ -302,5 +306,43 @@ test("host header links, pip extra index, unauthenticated WebSockets, client-sid
 test("pip extra index: commented-out options are not flagged", async () => {
   await withRepo({ "requirements.txt": "# --extra-index-url https://old.example/simple\nflask==3.0.0\n", "pip.conf": "[global]\n# extra-index-url = https://x\n" }, async (root) => {
     assert.ok(!(await scan(root)).some((f) => f.id === "SEC060"));
+  });
+});
+
+test("bundled libraries are reported apart from the application's own code", async () => {
+  await withRepo({
+    "app/controllers/Users.php": "<?php $h = sha1($password);\n",
+    "app/third_party/PHPExcel/Cache.php": "<?php $o = unserialize($obj);\n",
+    "system/core/Loader.php": "<?php\n/**\n * @license https://opensource.org/licenses/MIT MIT License\n */\necho eval($code);\n",
+    "public/js/jquery.dataTables.js": "x = eval('(' + s + ')');\n",
+    "public/js/app.js": "el.innerHTML = name;\n",
+  }, async (root) => {
+    const state = newState();
+    const found = await scan(root, state);
+    const own = found.filter((f) => f.context === "source").map((f) => f.file).sort();
+    assert.deepEqual(own, ["app/controllers/Users.php", "public/js/app.js"]);
+    assert.equal(found.filter((f) => f.context === "third-party").length, 3);
+    assert.ok(!found.some((f) => f.context === "third-party" && gateCounts(f)), "bundled code does not trip --fail-on");
+    assert.deepEqual(state.third_party.map((l) => l.path).sort(), ["app/third_party", "public/js/jquery.dataTables.js", "system"]);
+    const md = markdown(buildResult(root, found, state));
+    assert.ok(md.includes("## 3. Bundled third-party code"));
+    assert.ok(md.includes("| `system` | 1 | 1 | SEC002 |"));
+    assert.ok(md.includes("not counted above"));
+  });
+});
+
+test("library roots climb to the highest folder without the project's own code", () => {
+  assert.deepEqual(libraryRoots(["system/core/a.php", "system/db/b.php", "assets/js/jquery.js", "assets/js/tree/lib/t.js"], ["application/c.php", "assets/js/app.js"]),
+    [{ path: "system", files: 2 }, { path: "assets/js/jquery.js", files: 1 }, { path: "assets/js/tree", files: 1 }]);
+});
+
+test("lines inside a /* */ block are comments; PHP ->exec() is not a shell call", async () => {
+  await withRepo({
+    "config.php": "<?php\n/*\n| Note: You need to have eval() enabled for this to work.\n*/\n$x = 1;\n",
+    "db.php": "<?php $this->db->exec($query);\n$h->exec('DROP TABLE t');\nexec($cmd);\n",
+  }, async (root) => {
+    const found = await scan(root, newState());
+    assert.ok(!found.some((f) => f.file === "config.php"), "commented eval() must not be flagged");
+    assert.deepEqual(found.filter((f) => f.id === "SEC013").map((f) => f.line), [3]);
   });
 });

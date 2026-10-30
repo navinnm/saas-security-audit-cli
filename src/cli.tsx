@@ -183,7 +183,7 @@ async function main(): Promise<number> {
       const ext = target.toLowerCase().split(".").pop();
       if (ext === "pdf") writeFileSync(target, renderPdf(result, { includeTests: includeTestsFlag }));
       else writeFileSync(target, ext === "json" ? JSON.stringify(result, null, 2)
-        : ext === "html" || ext === "htm" ? renderHtml(result, { includeTests: includeTestsFlag }) : markdown(result), "utf8");
+        : ext === "html" || ext === "htm" ? renderHtml(result, { includeTests: includeTestsFlag }) : markdown(result, { includeTests: includeTestsFlag }), "utf8");
     }
     if (layerFile) {
       mkdirSync(dirname(layerFile), { recursive: true });
@@ -206,7 +206,7 @@ async function main(): Promise<number> {
   // 3–6 · Output
   if (format === "json") out(JSON.stringify(result, null, 2));
   else if (format === "html") process.stdout.write(renderHtml(result, { includeTests: includeTestsFlag }));
-  else if (format === "markdown") { if (!outputs.length) out(markdown(result)); }
+  else if (format === "markdown") { if (!outputs.length) out(markdown(result, { includeTests: includeTestsFlag })); }
   else if (format === "text" || format === "github") {
     if (format === "github") process.stdout.write(githubAnnotations(result));
     process.stdout.write(ciText(result, { version: pkg.version, project: info.project, elapsed, filesWalked: pre.total, failOn, gateTripped, report: reportName, profile: repo }));

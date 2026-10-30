@@ -372,6 +372,7 @@ export function summaryScreen(result: Result, i: SummaryInfo): { lines: string[]
     right.push(SUB + `${sevText(sev, SEV_LOWER[sev].padEnd(5))} ${padStart(num(n), 7)}  ${sevText(sev, bar(n, maxCount, barW))}`);
   }
   if (v.hidden.length) right.push(SUB + c.dim(`+${num(v.hidden.length)} more in tests and local env files · on request`));
+  if (v.thirdParty.length) right.push(SUB + c.dim(`+${num(v.thirdParty.length)} in bundled libraries · listed in reports`));
   out.push(...indent(worst ? columns(left, right, half) : right), "");
 
   // By area
@@ -567,7 +568,7 @@ function groupTitle(list: Finding[]): string {
 function locationTree(id: string, list: Finding[], width: number, maxRows: number): string[] {
   const byFile = new Map<string, Finding[]>();
   for (const f of list) byFile.set(f.file, [...(byFile.get(f.file) ?? []), f]);
-  const order: Record<string, number> = { source: 0, "local env": 1, docs: 2, test: 3, build: 4 };
+  const order: Record<string, number> = { source: 0, "local env": 1, docs: 2, test: 3, "third-party": 4, build: 5 };
   const files = [...byFile.entries()].sort((a, b) =>
     order[pathRole(a[1][0])] - order[pathRole(b[1][0])] || b[1].length - a[1].length || (a[0] < b[0] ? -1 : 1));
   const shown = files.slice(0, maxRows);
@@ -767,6 +768,7 @@ export function ciText(result: Result, o: { version: string; project: string; el
     }
   }
   if (v.hidden.length) out.push("", `+${v.hidden.length} leads in test files and local env files (not counted above)`);
+  if (v.thirdParty.length) out.push(`+${v.thirdParty.length} matches in bundled libraries (not counted above): ${v.libraries.slice(0, 3).map((l) => l.path).join(", ")}${v.libraries.length > 3 ? ", …" : ""}`);
   out.push("", `${"report".padEnd(12)}${o.report ?? "none (add --output report.md)"}`, `${"exit".padEnd(12)}${o.gateTripped ? 1 : 0}`, `${"by".padEnd(12)}powered by Fulgid · ${FULGID}`);
   return out.join("\n") + "\n";
 }

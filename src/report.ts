@@ -4,7 +4,8 @@ import { delimiter, join } from "node:path";
 import { CONTROLS, R, RULE_TITLES, SCHEMA_VERSION, SEVERITY_RANK, VERSION } from "./rules.js";
 import type { Finding, ScanState } from "./engine.js";
 import { CLI_VERSION } from "./version.js";
-import { markdownStandards, standardsSummary, standardsTag, vibeSummary, type StandardsSummary, type VibeCheck } from "./standards.js";
+import { standardsSummary, vibeSummary, type StandardsSummary, type VibeCheck } from "./standards.js";
+import { buildView, checklistLines, controlLabel, coverageLines, formatDate, standardSections } from "./view.js";
 
 const cmpStr = (a: string, b: string) => (a < b ? -1 : a > b ? 1 : 0);
 
@@ -88,13 +89,15 @@ export function buildResult(root: string, findings: Finding[], state: ScanState,
     inventory: { manifests: state.manifests, ecosystems, recommended_tools: tools,
       security_packages: Object.keys(state.packages).sort(cmpStr)
         .map((p) => ({ package: p, control: state.packages[p][0], role: state.packages[p][1] })),
-      env_files: state.env_files, test_files: state.test_files, ci_files: state.ci_files },
+      env_files: state.env_files, test_files: state.test_files, ci_files: state.ci_files,
+      third_party: state.third_party, third_party_files: state.third_party_files },
     standards: standardsSummary(findings),
     vibe_review: vibeSummary(findings),
     dependencies: state.deps ?? null,
     limitations: [
-      "Line rules plus code-flow analysis for JavaScript/TypeScript; false positives and false negatives are expected.",
-      "No control is automatically marked PASS; signals show where to look, not that a control is enforced.",
+      "Pattern rules, plus code-flow analysis for JavaScript/TypeScript. Some issues will be missed and some matches will turn out to be safe.",
+      "A scan cannot prove that a control works, so no control is marked as passed.",
+      "Bundled libraries (third_party/ and similar folders, minified bundles, files that open with an open-source licence header) are scanned but reported separately from the application's own code.",
       "Env files are judged by the root .gitignore; folders any .gitignore leaves out (build output, generated code) are skipped. Git history is not inspected.",
       state.deps && "packages" in state.deps
         ? "No target-code execution. Network: only package names and versions were sent, to api.osv.dev and registry.npmjs.org (--offline turns this off)."
@@ -116,7 +119,9 @@ export interface Result {
   inventory: { manifests: string[]; ecosystems: string[];
     recommended_tools: { command: string; purpose: string; installed: boolean; needs_network: boolean }[];
     security_packages: { package: string; control: number; role: string }[];
-    env_files: { file: string; gitignored: boolean; example: boolean }[]; test_files: number; ci_files: string[] };
+    env_files: { file: string; gitignored: boolean; example: boolean }[]; test_files: number; ci_files: string[];
+    /** Bundled libraries: matches inside them are reported with context "third-party". */
+    third_party?: { path: string; files: number }[]; third_party_files?: number };
   standards: StandardsSummary; vibe_review: VibeCheck[];
   limitations: string[]; comparison?: Comparison;
   /** Online dependency check: what was checked, or why it was skipped. */
@@ -136,83 +141,102 @@ export function depsLine(d: Result["dependencies"]): string {
 
 const mdEscape = (t: string) => t.replace(/`/g, "'").replace(/\|/g, "\\|");
 
-export function markdown(result: Result): string {
-  const findings = result.findings;
-  const stats = result.stats;
-  const out: string[] = ["# Local SaaS Security Heuristic Scan", "",
-    `- **Scanner:** saas-security-audit v${CLI_VERSION} (rules ${VERSION}), ${process.env.SAAS_AUDIT_ENGINE === "regex" ? "line rules only" : "line rules plus code-flow analysis for JavaScript/TypeScript"}; read-only, no target-code execution.`,
-    `- **Files scanned:** ${stats.files_scanned}`,
-    `- **Dependencies:** ${depsLine(result.dependencies)}`,
-    "- **Interpretation:** Every finding is a lead to validate in code, not a confirmed vulnerability.",
-    "- **Coverage:** No control is automatically marked PASS.", "",
-    "## Summary", "", "| Severity | In source code | All leads |", "|---|---|---|"];
-  for (const [s, n] of Object.entries(stats.by_severity)) out.push(`| ${s} | ${stats.by_severity_source[s]} | ${n} |`);
-  const other = stats.findings - Object.values(stats.by_severity_source).reduce((a, b) => a + b, 0);
-  out.push("", other
-    ? `**In source code** excludes ${other} lead(s) in test paths or gitignored local env files; those stay listed below, marked by context. Suppressed inline: ${stats.suppressed}.`
-    : `Test files and gitignored local env files were not read (\`--include-tests\` reads them). Suppressed inline: ${stats.suppressed}.`, "");
-  if (!findings.length) out.push("No heuristic matches detected. This does **not** mean the project is secure.", "");
-  else {
-    out.push("## Leads by control", "", `Each rule has a manual **Verify** step that confirms or rules out its leads. ${R.verify_note}`, "");
-    CONTROLS.forEach((name, i) => {
-      const group = findings.filter((f) => f.controls[0] === i + 1);
-      if (!group.length) return;
-      out.push(`### C${i + 1}. ${name}`, "");
-      for (const rid of [...new Set(group.map((f) => f.id))].sort(cmpStr)) {
-        const items = group.filter((f) => f.id === rid)
-          .sort((a, b) => SEVERITY_RANK[b.severity] - SEVERITY_RANK[a.severity] || cmpStr(a.file, b.file) || a.line - b.line);
-        const first = items[0];
-        const also = first.controls.slice(1).map((c) => `C${c}`);
-        const heading = RULE_TITLES[rid] ?? first.title;
-        out.push(`**${rid} — ${heading}** · confidence ${first.confidence}` + (also.length ? ` · also ${also.join(", ")}` : ""), "",
-          `Guidance: ${first.guidance}`, "", ...(first.verify ? [`Verify: ${first.verify}`, ""] : []));
-        for (const f of items) {
-          const ctx = f.context === "source" ? "" : ` _(${f.context})_`;
-          const label = f.title !== heading ? ` ${f.title}` : "";
-          out.push(`- ${f.severity}${label} — \`${f.file}:${f.line}\`${ctx} — \`${mdEscape(f.evidence)}\`${standardsTag(f)}`);
-        }
-        out.push("");
-      }
-    });
-  }
-  out.push("## Control coverage", "",
-    "Status stays NOT VERIFIED until enforcement and tests are confirmed in code. " +
-    "Signals are places where enforcement probably lives (source hits / test hits).", "",
-    "| # | Control | Status | Leads | Signals (src/test) | Look first |", "|---|---|---|---|---|---|");
-  for (const c of result.controls) {
-    const sig = c.signals;
-    const sigText = sig === null ? "—" : `${sig.source_count}/${sig.test_count}`;
-    const look = c.id === 17 ? "agent review" : c.id === 15 ? "dependency tools"
-      : sig && !sig.locations.length ? "none found — check for a gap"
-      : (sig ? sig.locations.slice(0, 3) : []).map((l) => `\`${l}\``).join(", ");
-    out.push(`| ${c.id} | ${c.name} | NOT VERIFIED | ${c.lead_count} | ${sigText} | ${look} |`);
-  }
-  out.push(...markdownStandards(result));
+/** Locations listed per finding in the Markdown and PDF reports; the JSON output and `saas-audit show` have all of them. */
+export const MAX_LOCATIONS = 25;
+
+export function markdown(result: Result, opts: { includeTests?: boolean; now?: Date } = {}): string {
+  const v = buildView(result, Boolean(opts.includeTests), opts.now);
   const inv = result.inventory;
-  out.push("", "## Inventory", "",
-    `- Dependency manifests: ${inv.manifests.map((m) => `\`${m}\``).join(", ") || "none found"}`,
-    `- Test files detected: ${inv.test_files}` + (!inv.test_files ? " — PASS is unattainable for most controls without tests." : ""),
-    `- CI files: ${inv.ci_files.map((c) => `\`${c}\``).join(", ") || "none found"}`);
-  if (inv.security_packages.length) {
-    out.push("- Security-relevant packages (presence ≠ enforcement): " +
-      inv.security_packages.map((p) => `\`${p.package}\` (C${p.control} ${p.role})`).join(", "));
+  const own = result.stats.files_scanned - (inv.third_party_files ?? 0);
+  const out: string[] = [`# Security review: ${v.project}`, R.report_markdown_marker, "",
+    "| | |", "|---|---|",
+    `| Target | \`${mdEscape(result.root)}\` |`,
+    `| Date | ${formatDate(v.generatedAt)} |`,
+    `| Scope | ${own} files of application code${inv.third_party_files ? `, ${inv.third_party_files} files in bundled libraries` : ""}; dependencies ${depsLine(result.dependencies)} |`,
+    `| Method | Static source review: pattern rules plus code-flow analysis for JavaScript/TypeScript. Read-only; no code was run. |`,
+    `| Tool | saas-security-audit v${CLI_VERSION} (rules ${VERSION}) |`, "",
+    "## 1. Summary", "", ...v.summary.flatMap((p) => [p, ""])];
+  if (v.issues.length) {
+    out.push("| Ref | Issue | Severity | Locations |", "|---|---|---|---|");
+    for (const i of v.issues) out.push(`| ${i.ref} | ${mdEscape(i.title)} | ${i.severity} | ${i.locations.length} |`);
+    out.push("");
   }
-  out.push("", "Recommended tools (ask before running anything that needs network access):", "");
-  for (const t of inv.recommended_tools) {
-    out.push(`- \`${t.command}\` — ${t.purpose}; ${t.installed ? "installed" : "not installed"}${t.needs_network ? "; needs network" : "; offline"}`);
+
+  out.push("## 2. Findings", "");
+  if (!v.issues.length) out.push("No issues found in the application's own code.", "");
+  for (const i of v.issues) {
+    out.push(`### ${i.ref} ${i.title}`, "",
+      `**Severity:** ${i.severity} · **Confidence:** ${i.confidence} · **Area:** ${controlLabel(i.controls[0])} · **Rule:** ${i.id}`, "");
+    if (i.risk) out.push(`**Risk.** ${i.risk}`, "");
+    out.push(`**Affected locations** (${i.locations.length} in ${i.files} file${i.files === 1 ? "" : "s"})`, "");
+    for (const f of i.locations.slice(0, MAX_LOCATIONS)) {
+      const extra = [i.mixed ? f.severity : "", f.title !== i.title ? f.title : ""].filter(Boolean).join(", ");
+      out.push(`- \`${f.file}:${f.line}\`${extra ? ` (${mdEscape(extra)})` : ""}: \`${mdEscape(f.evidence)}\``);
+    }
+    if (i.locations.length > MAX_LOCATIONS) out.push(`- …and ${i.locations.length - MAX_LOCATIONS} more (\`saas-audit show ${i.id}\` lists them all)`);
+    out.push("", `**Recommendation.** ${i.guidance}`, "");
+    if (i.verify) out.push(`**How to verify.** ${i.verify}`, "");
+    if (i.references.length) out.push(`**References.** ${i.references.join(" · ")}`, "");
   }
+
+  let n = 2;
+  if (v.libraries.length) {
+    out.push(`## ${++n}. Bundled third-party code`, "",
+      `${v.thirdParty.length} matches are inside libraries copied into the repository. They are not counted as findings: the code belongs to the library, ` +
+      "and the fix is to keep the library on a supported, patched release (or install it through a package manager) rather than edit it.", "",
+      "| Library path | Files | Matches | Rules |", "|---|---|---|---|");
+    for (const l of v.libraries) out.push(`| \`${mdEscape(l.path)}\` | ${l.files} | ${l.matches} | ${l.rules.join(", ")} |`);
+    out.push("");
+  }
+
+  out.push(`## ${++n}. Control coverage`, "",
+    "A control passes only when its enforcement is found in code and covered by a test. A scan cannot show that, so no control is marked as passed.", "",
+    "| # | Control | Result | Findings |", "|---|---|---|---|");
+  for (const c of coverageLines(result, v.issues)) out.push(`| C${c.id} | ${c.name} | ${c.result} | ${c.refs.join(", ") || "–"} |`);
+
+  out.push("", `## ${++n}. Common implementation mistakes`, "",
+    "Twelve mistakes that turn up most often in quickly built SaaS apps. \"Not found\" means no pattern matched.", "",
+    "| # | Check | Result |", "|---|---|---|");
+  for (const c of checklistLines(result, v.issues)) out.push(`| ${c.id} | ${c.title} | ${c.refs.length ? `Found: ${c.refs.join(", ")}` : "Not found"} |`);
+
+  out.push("", `## ${++n}. Standards`, "", result.standards.note, "");
+  const fws = result.standards.frameworks.filter((fw) => fw.requirements.length);
+  for (const sec of standardSections(result, v.issues)) {
+    if (!sec.rows.length) continue;
+    out.push(`**${sec.title}**`, "", `| ID | ${sec.kind} | Findings |`, "|---|---|---|");
+    for (const r of sec.rows) out.push(`| ${r.id} | ${mdEscape(r.name)} | ${r.refs.join(", ")} |`);
+    out.push("");
+  }
+  if (fws.length) {
+    out.push("**Compliance frameworks (related requirements)**", "");
+    for (const fw of fws) out.push(`- ${fw.name}: ${fw.requirements.map((r) => `${r.ref}${r.name ? ` ${r.name}` : ""}`).join("; ")}`);
+    out.push("");
+  }
+
   if (result.suppressed.length) {
-    out.push("", "## Suppressed leads", "", "Inline `security-audit: ignore` markers. Each still needs a reviewer to agree with the reason.", "");
-    for (const f of result.suppressed) out.push(`- ${f.id} \`${f.file}:${f.line}\` — reason: ${mdEscape(f.suppressed ?? "")}`);
+    out.push(`## ${++n}. Suppressed matches`, "", "Inline `security-audit: ignore` markers. Each still needs a reviewer to agree with the reason.", "");
+    for (const f of result.suppressed) out.push(`- ${f.id} \`${f.file}:${f.line}\`: ${mdEscape(f.suppressed ?? "")}`);
+    out.push("");
   }
   if (result.comparison) {
     const c = result.comparison;
-    out.push("", "## Baseline comparison", "",
-      `- New: ${c.new.length} · Resolved: ${c.resolved.length} · Persisting: ${c.persisting}`,
-      "- A resolved lead means the pattern no longer matches — confirm the root cause was fixed, not just reworded.", "");
-    for (const f of c.new) out.push(`- NEW ${f.id} \`${f.file}:${f.line}\` — ${f.title}`);
-    for (const f of c.resolved) out.push(`- RESOLVED ${f.id} \`${f.file}\` — ${f.title}`);
+    out.push(`## ${++n}. Compared with the previous scan`, "",
+      `New: ${c.new.length} · Resolved: ${c.resolved.length} · Unchanged: ${c.persisting}`, "",
+      "A resolved match means the pattern no longer matches. Confirm the cause was fixed, not just reworded.", "");
+    for (const f of c.new) out.push(`- New: ${f.id} \`${f.file}:${f.line}\` ${f.title}`);
+    for (const f of c.resolved) out.push(`- Resolved: ${f.id} \`${f.file}\` ${f.title}`);
+    out.push("");
   }
-  out.push("", "## Limitations", "", ...result.limitations.map((l) => `- ${l}`));
+
+  out.push(`## ${++n}. Scope and limitations`, "",
+    "This is an automated static review. Each finding marks code that matches a known weak pattern; a reviewer should confirm it before it is treated as a vulnerability, " +
+    `using the "How to verify" step. ${R.verify_note}`, "",
+    ...result.limitations.map((l) => `- ${l}`), "",
+    `Dependency manifests: ${inv.manifests.map((m) => `\`${m}\``).join(", ") || "none found"}. ` +
+    `Test files: ${inv.test_files}. CI files: ${inv.ci_files.map((c) => `\`${c}\``).join(", ") || "none found"}.`, "",
+    "Further checks worth running:", "");
+  for (const t of inv.recommended_tools) {
+    out.push(`- \`${t.command}\` (${t.purpose}; ${t.installed ? "installed" : "not installed"}, ${t.needs_network ? "needs network" : "offline"})`);
+  }
   return out.join("\n") + "\n";
 }

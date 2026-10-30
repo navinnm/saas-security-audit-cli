@@ -1,6 +1,6 @@
 {
  "generated_from": "saas-security-audit CLI (started from the plugin's scripts/scan.py 0.4.0; the CLI is now the source of truth)",
- "version": "0.7.0",
+ "version": "0.8.0",
  "schema_version": 3,
  "controls": [
   "Row-level security and tenant isolation",
@@ -647,7 +647,7 @@
      ]
     },
     {
-     "source": "\\b(?:shell_exec|passthru|proc_open|popen|system|exec)\\s*\\([^)\\n]*\\$",
+     "source": "(?<![\\w$>:])(?:shell_exec|passthru|proc_open|popen|system|exec)\\s*\\([^)\\n]*\\$",
      "flags": "",
      "exts": [
       ".php"
@@ -2004,6 +2004,18 @@
   "client_system_prompt_re": {
    "source": "\\brole\\s*:\\s*[\\\"']system[\\\"']|\\bsystem_?(?:prompt|message|instructions?)\\s*[:=]\\s*[`\\\"']|\\bsystemPrompt\\s*[:=]\\s*[`\\\"']|\\bsystem\\s*:\\s*[`\\\"'][^`\\\"'\\n]{20,}",
    "flags": "i"
+  },
+  "third_party_dir_re": {
+   "source": "^(?:third[_-]?party|3rdparty|vendors|external|externals|web_modules|jspm_packages)$",
+   "flags": "i"
+  },
+  "third_party_file_re": {
+   "source": "[.-]min\\.(?:js|mjs|css)$|\\.bundle\\.js$|(?:^|/)jquery[.-][^/]*\\.js$",
+   "flags": "i"
+  },
+  "third_party_header_re": {
+   "source": "@license\\b|SPDX-License-Identifier|\\blicen[cs]ed under\\b|\\breleased under the\\b[^\\n]{0,40}\\blicen[cs]e\\b|\\bis free software\\b|\\bfree software, under\\b|\\bPermission is hereby granted, free of charge\\b|\\b(?:MIT|BSD|GPL|LGPL|Apache|MPL)(?: v?\\d(?:\\.\\d)?)?(?: style)? licen[cs]e\\b",
+   "flags": "im"
   }
  },
  "control_signals": {
@@ -3926,7 +3938,7 @@
   "PR.IR-01": "Networks are protected from unauthorized access",
   "ID.RA-01": "Vulnerabilities in assets are identified"
  },
- "standards_note": "Mappings are indicative: they show which requirements a lead relates to. A code scan alone does not demonstrate compliance with PCI DSS, SOC 2, ISO/IEC 27001, NIST SSDF, NIST CSF or OWASP ASVS. MITRE ATT&CK and ATLAS IDs name the technique an attacker could use against a weakness like this; D3FEND IDs name the countermeasure the fix applies.",
+ "standards_note": "These mappings show which requirements each finding relates to. A code scan alone does not show compliance with PCI DSS, SOC 2, ISO/IEC 27001, NIST SSDF, NIST CSF or OWASP ASVS. MITRE ATT&CK and ATLAS name the technique an attacker would use against the weakness; D3FEND names the countermeasure the fix applies.",
  "vibe_checks": [
   {
    "id": "V1",
@@ -4167,5 +4179,67 @@
   "SEC061": "Connect with no cookie or token from another origin: npx wscat -c wss://<host>/<path> -H 'Origin: https://evil.example'. The handshake should be refused, or the socket closed before it sends any data.",
   "SEC062": "Open the deployed page, then search the JavaScript bundles (DevTools > Sources > search) for a phrase from the system prompt. If it is there, every visitor can read it; move the prompt to a server route."
  },
- "verify_note": "Run these checks only against systems you own or are authorized to test, preferably a staging copy with test accounts."
+ "verify_note": "Run these checks only against systems you own or are authorized to test, preferably a staging copy with test accounts.",
+ "risk": {
+  "SEC001": "A password, key or token written into the source is readable by anyone with access to the repository, its forks, CI logs and backups, and it stays in git history after it is deleted.",
+  "SEC002": "If any part of the evaluated string can be influenced by a user, they can run their own code inside the application with its permissions and data access.",
+  "SEC003": "A value pasted into SQL text can change the query itself. An attacker who controls it can read other customers' data, change records or bypass a login check.",
+  "SEC004": "Debug mode shows stack traces, configuration and sometimes an interactive console to whoever triggers an error, which hands an attacker a map of the system.",
+  "SEC005": "A CORS policy that allows any origin, especially with credentials, lets a malicious website call the API from a signed-in user's browser and read the responses.",
+  "SEC006": "Traffic over plain HTTP can be read and changed by anyone on the network path, including session cookies, tokens and the scripts the page loads.",
+  "SEC007": "Without Secure, HttpOnly and SameSite, a session cookie can leak over HTTP, be stolen by injected JavaScript, or be sent along with cross-site requests.",
+  "SEC011": "Passwords, tokens or personal data written to logs end up in log storage and third-party log tools, where far more people can read them than the database.",
+  "SEC012": "This matches the format of a real provider key. Anyone who has seen the repository can use it until it is revoked, and it is often enough to spend money or read customer data.",
+  "SEC013": "If user input reaches the command, an attacker can run any command on the server with the application's permissions.",
+  "SEC014": "Deserializing data a user can supply can create arbitrary objects, which in most languages leads to remote code execution.",
+  "SEC015": "Writing unescaped HTML lets an attacker store or reflect a script that runs in other users' browsers, steals their session and acts as them.",
+  "SEC016": "With certificate checks off, anyone on the network path can impersonate the remote service and read or change the data, including API keys sent to it.",
+  "SEC017": "A token that is decoded but not verified, or accepted with alg none or a weak secret, can be forged to sign in as any user.",
+  "SEC018": "Without CSRF protection, another website can make a signed-in user's browser submit forms and state-changing requests on their behalf.",
+  "SEC019": "Writing the whole request body to a record lets a user set fields the form never showed, such as role, owner, tenant or price.",
+  "SEC020": "If the URL comes from the request, the server can be pointed at internal services and cloud metadata endpoints that are not reachable from outside.",
+  "SEC021": "Math.random and similar generators are predictable. Tokens, reset codes or IDs made with them can be guessed.",
+  "SEC022": "A rule that allows every row, or a service key used where a user key belongs, lets one customer read or change another customer's data.",
+  "SEC023": "Variables with a public prefix are compiled into the browser bundle, so this secret is visible to every visitor of the site.",
+  "SEC024": "Fast hashes such as MD5 and SHA-1 can be cracked at billions of guesses per second. If the user table leaks, most passwords will be recovered.",
+  "SEC025": "Returning raw errors shows file paths, queries and library versions, which helps an attacker plan the next step.",
+  "SEC026": "Public buckets and object ACLs expose every stored file, including invoices, exports and uploads, to anyone who finds or guesses the URL.",
+  "SEC027": "A redirect target taken from the request lets an attacker send users from a trusted link on your domain to a phishing page, and can leak OAuth codes.",
+  "SEC028": "A file path built from request input can step outside the intended folder with ../ and read or overwrite other files on the server.",
+  "SEC029": "Passing a request object straight into a NoSQL query lets an attacker send operators such as $ne or $gt and match records they should not see.",
+  "SEC030": "On Supabase and similar platforms, a table without row-level security is readable and writable by any signed-in user through the public API.",
+  "SEC031": "Without signature verification, anyone who learns the webhook URL can send fake events, for example to mark an order paid or grant a subscription.",
+  "SEC032": "An env file the root .gitignore does not cover is easy to commit, and with it every secret it holds.",
+  "SEC033": "Without a lockfile, each install can pull different versions, including a compromised release, and builds cannot be reproduced.",
+  "SEC034": "Providers retry webhooks. Without idempotency, one replayed event can be processed twice and credit, charge or provision twice.",
+  "SEC035": "Text from users or documents inside a system prompt can override the model's instructions, leak the prompt or make tools act for the attacker.",
+  "SEC036": "Model output is attacker-influenced text. Passing it to SQL, a shell, eval or raw HTML turns a prompt injection into code or query injection.",
+  "SEC037": "Long-lived sessions and tokens stay usable long after a device is lost or a token leaks, and are harder to revoke.",
+  "SEC038": "With RLS enabled and no policy, the table is closed to clients, which usually leads to a service key being used to work around it.",
+  "SEC039": "In a shared database, a model without a tenant key relies on every query remembering to filter by customer; one missed filter leaks data.",
+  "SEC040": "A check that only runs in the browser can be skipped by calling the API directly, so the server must make the same decision.",
+  "SEC041": "Tokens in localStorage can be read by any script on the page, so a single XSS bug turns into account takeover.",
+  "SEC042": "Calling a secret-key API from the browser means shipping the key to every visitor.",
+  "SEC043": "The comment marks a security check that was planned but may never have been written.",
+  "SEC044": "The handler does not check who is calling it, so anyone who finds the endpoint can use it without signing in.",
+  "SEC045": "The record is fetched by an id from the request with no owner filter. Changing the id in the URL or body may return another customer's data.",
+  "SEC046": "The request body goes into the database unchanged, so a user can set any column, including role, owner, plan or price.",
+  "SEC047": "Owner, role or price comes from the request instead of the session or the server, so the user can choose their own value.",
+  "SEC048": "Request data was traced to raw SQL, a shell command or eval. That is the classic path to injection and code execution.",
+  "SEC049": "Request data decides where the server fetches from or redirects to, which allows SSRF against internal services or an open redirect.",
+  "SEC050": "This exact package version has a published vulnerability. Public advisories make it easy for attackers to find and exploit.",
+  "SEC051": "A dependency a major version behind usually no longer gets security fixes, and the upgrade grows harder the longer it waits.",
+  "SEC052": "A container running as root turns any code-execution bug into root inside the container and makes escaping to the host easier.",
+  "SEC053": "Secrets baked into an image or manifest are copied to every registry, cluster and developer machine that pulls it.",
+  "SEC054": "A tag such as latest or v3 can be moved to point at different code. An unpinned image or action can change under you, including to a malicious version.",
+  "SEC055": "A security group or firewall rule open to 0.0.0.0/0 exposes the service to constant scanning and attack from the whole internet.",
+  "SEC056": "A database that is reachable from outside, or accepts trust or empty-password logins, can be read or wiped by anyone who reaches it.",
+  "SEC057": "The workflow runs code or text from forks or pull requests while it has access to secrets, so a pull request can steal those secrets.",
+  "SEC058": "Privileged containers and host mounts give the container control of the host, so one compromised service compromises the node.",
+  "SEC059": "If the Host or X-Forwarded-Host header decides the link domain, an attacker can request a password-reset email whose link points to their own site and capture the token.",
+  "SEC060": "With an extra index next to the public one, pip picks the highest version from either. An attacker can publish your internal package name publicly and have it installed.",
+  "SEC061": "A WebSocket server that does not check the session or Origin lets any site open a connection as the signed-in user (cross-site WebSocket hijacking).",
+  "SEC062": "Everything in a client component ships to the browser, so the full system prompt, with its rules and any internal details, is readable by every visitor."
+ },
+ "report_markdown_marker": "<!-- saas-security-audit report -->"
 }

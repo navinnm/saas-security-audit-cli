@@ -2,13 +2,14 @@
 import { basename } from "node:path";
 import type { Finding } from "./engine.js";
 import type { Result } from "./report.js";
-import { RULE_TITLES, SEVERITY_RANK } from "./rules.js";
+import { R, RULE_TITLES, SEVERITY_RANK } from "./rules.js";
+import { standardsLabels } from "./standards.js";
 
 /**
  * Shown by default: findings in the project's own source code, plus real-format secrets wherever
  * they are (a live key in a test fixture is still a leaked key).
  */
-export const shownByDefault = (f: Finding) => f.context === "source" || (f.context === "test" && f.id === "SEC012");
+export const shownByDefault = (f: Finding) => f.context === "source" || ((f.context === "test" || f.context === "third-party") && f.id === "SEC012");
 
 export const SEVERITY_ORDER = ["Critical", "High", "Medium", "Low", "Informational"] as const;
 
@@ -21,11 +22,28 @@ export const CONTROL_SHORT = [
   "JWT & sessions", "AI / LLM security",
 ];
 
+/** One reported issue: every location one rule matched, with the risk, the fix and the manual check. */
+export interface Issue {
+  ref: string; id: string; title: string; severity: string; confidence: string; controls: number[];
+  risk: string; guidance: string; verify: string; references: string[];
+  locations: Finding[]; files: number; mixed: boolean;
+}
+
+/** A bundled library and what matched inside it. */
+export interface LibraryGroup { path: string; files: number; matches: number; rules: string[] }
+
 export interface View {
   project: string;
   generatedAt: Date;
   shown: Finding[];
+  /** Test files and gitignored local env files (not counted). */
   hidden: Finding[];
+  /** Matches inside bundled libraries (not counted). */
+  thirdParty: Finding[];
+  issues: Issue[];
+  libraries: LibraryGroup[];
+  /** Executive-summary paragraphs, plain text. */
+  summary: string[];
   sourceCounts: Record<string, number>;
   stack: string[];
   posture: { level: "critical" | "high" | "medium" | "low"; headline: string; detail: string };
@@ -44,7 +62,9 @@ const bySeverity = (a: Finding, b: Finding) =>
 
 export function buildView(result: Result, includeTests = false, now = new Date()): View {
   const shown = (includeTests ? [...result.findings] : result.findings.filter(shownByDefault)).sort(bySeverity);
-  const hidden = includeTests ? [] : result.findings.filter((f) => !shownByDefault(f)).sort(bySeverity);
+  const notShown = includeTests ? [] : result.findings.filter((f) => !shownByDefault(f)).sort(bySeverity);
+  const hidden = notShown.filter((f) => f.context !== "third-party");
+  const thirdParty = notShown.filter((f) => f.context === "third-party");
   const sourceCounts = result.stats.by_severity_source;
 
   const stack = [...new Set(result.inventory.security_packages.map((p) => STACK_NAMES[p.package]).filter((n): n is string => Boolean(n)))];
@@ -87,10 +107,84 @@ export function buildView(result: Result, includeTests = false, now = new Date()
     notVerified: rows.filter((r) => !r.leads && !(r.signals !== null && r.signals.source_count === 0)),
   };
 
+  const issues = groupIssues(shown);
+  const libraries = libraryGroups(result, thirdParty);
+  const project = basename(result.root) || result.root;
   return {
-    project: basename(result.root) || result.root, generatedAt: now, shown, hidden, sourceCounts, stack, posture,
-    controlsWithLeads: coverage.leads.length, guidance, coverage,
+    project, generatedAt: now, shown, hidden, thirdParty, issues, libraries,
+    summary: summaryText(result, issues, libraries, thirdParty.length, hidden.length),
+    sourceCounts, stack, posture, controlsWithLeads: coverage.leads.length, guidance, coverage,
   };
+}
+
+const plural = (n: number, one: string, many = one + "s") => `${n.toLocaleString("en-US")} ${n === 1 ? one : many}`;
+
+/** One issue per rule, worst first, then the most widespread. */
+export function groupIssues(shown: Finding[]): Issue[] {
+  const byRule = new Map<string, Finding[]>();
+  for (const f of shown) byRule.set(f.id, [...(byRule.get(f.id) ?? []), f]);
+  const worst = (l: Finding[]) => Math.max(...l.map((f) => SEVERITY_RANK[f.severity]));
+  const groups = [...byRule.entries()].sort((a, b) => worst(b[1]) - worst(a[1]) || b[1].length - a[1].length || (a[0] < b[0] ? -1 : 1));
+  const width = Math.max(2, String(groups.length).length);
+  return groups.map(([id, list], i) => {
+    const locations = [...list].sort(bySeverity);
+    const first = locations[0];
+    return {
+      ref: `F-${String(i + 1).padStart(width, "0")}`, id, title: RULE_TITLES[id] ?? first.title,
+      severity: first.severity, confidence: first.confidence, controls: first.controls,
+      risk: R.risk[id] ?? "", guidance: first.guidance, verify: first.verify ?? "",
+      references: standardsLabels(first.standards), locations,
+      files: new Set(list.map((f) => f.file)).size, mixed: new Set(list.map((f) => f.severity)).size > 1,
+    };
+  });
+}
+
+function libraryGroups(result: Result, thirdParty: Finding[]): LibraryGroup[] {
+  const roots = result.inventory.third_party ?? [];
+  const rootOf = (file: string) => roots.find((r) => file === r.path || file.startsWith(r.path + "/"))?.path ?? file;
+  const map = new Map<string, LibraryGroup>(roots.map((r) => [r.path, { path: r.path, files: r.files, matches: 0, rules: [] }]));
+  for (const f of thirdParty) {
+    const key = rootOf(f.file);
+    const g = map.get(key) ?? { path: key, files: 1, matches: 0, rules: [] };
+    g.matches++;
+    if (!g.rules.includes(f.id)) g.rules.push(f.id);
+    map.set(key, g);
+  }
+  return [...map.values()].filter((g) => g.matches).map((g) => ({ ...g, rules: g.rules.sort() }))
+    .sort((a, b) => b.matches - a.matches || (a.path < b.path ? -1 : 1));
+}
+
+/** File names for a sentence: "Users.php, Profile.php and 3 other files". */
+export function fileNames(list: Finding[], max = 3): string {
+  const names = [...new Set(list.map((f) => f.file.split("/").pop() || f.file))];
+  if (names.length <= max) return names.length > 1 ? `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}` : names[0] ?? "";
+  return `${names.slice(0, max).join(", ")} and ${plural(names.length - max, "other file")}`;
+}
+
+function summaryText(result: Result, issues: Issue[], libraries: LibraryGroup[], vendorMatches: number, hidden: number): string[] {
+  const out: string[] = [];
+  const own = result.stats.files_scanned - (result.inventory.third_party_files ?? 0);
+  const bySev = SEVERITY_ORDER.map((s) => [s, issues.filter((i) => i.severity === s).length] as const).filter(([, n]) => n);
+  const locations = issues.reduce((a, i) => a + i.locations.length, 0);
+  out.push(issues.length
+    ? `The review read ${plural(own, "file")} of the application's own code and found ${plural(issues.length, "issue")} ` +
+      `(${bySev.map(([s, n]) => `${n} ${s.toLowerCase()}`).join(", ")}) at ${plural(locations, "location")}.`
+    : `The review read ${plural(own, "file")} of the application's own code and found no issues. ` +
+      "That does not show the code is secure: a pattern scan cannot see every flaw (see Scope and limitations).");
+  const urgent = issues.filter((i) => SEVERITY_RANK[i.severity] >= SEVERITY_RANK.High);
+  const lead = (urgent.length ? urgent : issues).slice(0, 2);
+  if (lead.length) {
+    out.push((urgent.length ? "Fix first: " : "The most widespread: ") + lead.map((i) =>
+      `${i.title.charAt(0).toLowerCase()}${i.title.slice(1)} (${i.ref}) in ${fileNames(i.locations)}`).join("; and ") + "." +
+      (urgent.length > lead.length ? ` ${plural(urgent.length - lead.length, "more high-severity issue")} follow${urgent.length - lead.length === 1 ? "s" : ""} in section 2.` : ""));
+  }
+  if (vendorMatches) {
+    out.push(`A further ${plural(vendorMatches, "match", "matches")} ${vendorMatches === 1 ? "is" : "are"} inside ${plural(libraries.length, "bundled library", "bundled libraries")} ` +
+      `(${libraries.slice(0, 3).map((l) => l.path).join(", ")}${libraries.length > 3 ? ", …" : ""}). They are not counted above. ` +
+      "Keep those libraries on a supported, patched release, or install them through a package manager, instead of editing them.");
+  }
+  if (hidden) out.push(`${plural(hidden, "match", "matches")} in test files and gitignored local env files ${hidden === 1 ? "is" : "are"} not counted either.`);
+  return out;
 }
 
 /** Frameworks and platforms worth naming in a report header (security helper libraries are not "stack"). */
@@ -132,7 +226,7 @@ export const RULE_SHORT: Record<string, string> = {
   SEC056: "exposed database", SEC057: "CI runs untrusted code", SEC058: "privileged container",
 };
 
-export type PathRole = "source" | "build" | "docs" | "test" | "local env";
+export type PathRole = "source" | "build" | "docs" | "test" | "local env" | "third-party";
 const BUILD_SEGMENT = /^(?:\.next(?:-.+)?|dist|build|out|\.output|\.nuxt|\.svelte-kit|\.vercel|\.turbo|\.parcel-cache|storybook-static|chunks|\.expo|\.angular)$/;
 const DOCS_SEGMENT = /^(?:docs?|\.agents|\.claude|\.cursor|\.github|examples?|samples?)$/i;
 
@@ -140,6 +234,7 @@ const DOCS_SEGMENT = /^(?:docs?|\.agents|\.claude|\.cursor|\.github|examples?|sa
 export function pathRole(f: Finding): PathRole {
   if (f.context === "test") return "test";
   if (f.context === "ignored-local-env") return "local env";
+  if (f.context === "third-party") return "third-party";
   const parts = f.file.split("/");
   if (parts.slice(0, -1).some((p) => BUILD_SEGMENT.test(p))) return "build";
   if (parts.slice(0, -1).some((p) => DOCS_SEGMENT.test(p)) || /\.(?:md|mdx|rst|txt)$/i.test(f.file)) return "docs";
@@ -185,8 +280,9 @@ export function whereWorst(shown: Finding[]): { severity: string; total: number;
     docs: "docs and agent files · check whether values are real",
     test: "test files · usually intentional samples",
     "local env": "gitignored local env files",
+    "third-party": "bundled library · update it, don't edit it",
   })[role];
-  const order: PathRole[] = ["source", "local env", "docs", "test", "build"];
+  const order: PathRole[] = ["source", "local env", "docs", "test", "third-party", "build"];
   const groups = [...map.values()]
     .sort((a, b) => order.indexOf(a.role) - order.indexOf(b.role) || b.count - a.count)
     .map((g) => ({ ...g, label: roleLabel(g.role) }));
@@ -300,4 +396,56 @@ export function fixPlan(shown: Finding[]): FixAction[] {
     }
     return { severity, title, detail, command, tags, when: severity === "Critical" ? "do today" : "before release" };
   });
+}
+
+// ---------- report sections shared by the Markdown, HTML and PDF reports ----------
+
+export interface StandardSection {
+  title: string; kind: string;
+  rows: { id: string; name: string; refs: string[]; locations: number }[];
+  /** Entries this scanner checks that had no findings. */
+  quiet: number;
+}
+
+/** Standards tables trimmed to what was found, each row pointing at the report's finding numbers. */
+export function standardSections(result: Result, issues: Issue[]): StandardSection[] {
+  const s = result.standards;
+  const refOf = new Map(issues.map((i) => [i.id, i.ref]));
+  const refs = (rules: string[]) => [...new Set(rules.map((r) => refOf.get(r)).filter((r): r is string => Boolean(r)))].sort();
+  const section = (title: string, kind: string, rows: { id: string; name: string; leads: number; rules: string[]; checked?: boolean }[]): StandardSection => ({
+    title, kind,
+    rows: rows.map((r) => ({ id: r.id, name: r.name, refs: refs(r.rules), locations: r.leads })).filter((r) => r.locations && r.refs.length),
+    quiet: rows.filter((r) => (r.checked ?? true) && !(r.leads && refs(r.rules).length)).length,
+  });
+  const cweRules = (id: string) => Object.keys(R.standards).filter((rid) => R.standards[rid].cwe.includes(id));
+  return [
+    section("OWASP Top 10 (2021)", "Category", s.owasp_top10_2021),
+    section("OWASP API Security Top 10 (2023)", "Category", s.owasp_api_2023),
+    section("OWASP Top 10 for LLM Applications (2025)", "Category", s.owasp_llm_2025),
+    { ...section("CWE", "Weakness", s.cwe.map((c) => ({ id: c.id, name: c.name + (c.top25 ? " (CWE Top 25)" : ""), leads: c.leads, rules: cweRules(c.id) }))), quiet: 0 },
+    section(`MITRE ATT&CK (v${s.versions.attack})`, "Technique", s.mitre_attack),
+    section(`MITRE ATLAS (${s.versions.atlas})`, "Technique", s.mitre_atlas),
+    section(`MITRE D3FEND (${s.versions.d3fend})`, "Countermeasure", s.mitre_d3fend),
+  ];
+}
+
+export interface CoverageLine { id: number; name: string; result: string; refs: string[]; found: boolean }
+
+/** Each control's outcome in words: issues found (with refs), or no issues and whether related code was seen. */
+export function coverageLines(result: Result, issues: Issue[]): CoverageLine[] {
+  return result.controls.map((c) => {
+    const refs = issues.filter((i) => i.controls[0] === c.id).map((i) => i.ref);
+    const sig = c.signals;
+    const result = refs.length ? `${plural(refs.length, "issue")} found`
+      : c.id === 15 ? "None found · also run a dependency audit"
+      : c.id === 17 ? "Needs a manual or agent review"
+      : sig && sig.source_count ? "None found · related code seen"
+      : "None found · no related code";
+    return { id: c.id, name: c.name, result, refs, found: refs.length > 0 };
+  });
+}
+
+/** The common-mistakes checklist (vibe review), with finding numbers instead of rule ids. */
+export function checklistLines(result: Result, issues: Issue[]): { id: string; title: string; refs: string[] }[] {
+  return result.vibe_review.map((v) => ({ id: v.id, title: v.title, refs: issues.filter((i) => v.rules.includes(i.id)).map((i) => i.ref) }));
 }
