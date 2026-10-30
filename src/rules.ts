@@ -34,12 +34,19 @@ interface RawRules {
   control_signals: Record<string, Rx>;
   security_packages: Record<string, { control: number; role: string }>;
   rule_titles: Record<string, string>;
-  standards: Record<string, { owasp: string | null; api: string[]; llm: string[]; cwe: string[]; kind: string | null }>;
+  standards: Record<string, {
+    owasp: string | null; api: string[]; llm: string[]; cwe: string[]; kind: string | null;
+    attack: string[]; atlas: string[]; d3fend: string[];
+  }>;
   owasp_top10: Record<string, string>;
   owasp_api: Record<string, string>;
   owasp_llm: Record<string, string>;
   cwe_names: Record<string, string>;
   cwe_top25_2024: string[];
+  attack_techniques: Record<string, string>;
+  atlas_techniques: Record<string, string>;
+  d3fend_techniques: Record<string, string>;
+  threat_framework_versions: { attack: string; atlas: string; d3fend: string };
   frameworks: { id: string; name: string; mapping: Record<string, string[]> }[];
   framework_ref_names: Record<string, string>;
   standards_note: string;

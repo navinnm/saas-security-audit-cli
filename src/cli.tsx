@@ -16,6 +16,7 @@ import {
 } from "./ui/screens.js";
 import { renderHtml } from "./html.js";
 import { renderPdf } from "./pdf.js";
+import { attackLayer } from "./standards.js";
 import { bold, c, contentWidth, gradient, withMargin } from "./ui/theme.js";
 import { stackOf } from "./view.js";
 import { profile } from "./profile.js";
@@ -39,6 +40,7 @@ ${bold("Usage")}
 
 ${bold("Options")}
   --output <file>                    Write a report; repeatable. Format from extension: .pdf .html .json .md
+  --attack-layer <file>              Write a MITRE ATT&CK Navigator layer (.json) of checked techniques and leads
   --fail-on <level>                  Exit 1 on a lead at/above: ${FAIL_ON.join(", ")}
   --format <format>                  ${FORMATS.join(" | ")}  (default: pretty in a terminal, text otherwise)
   --json                             Shorthand for --format json
@@ -57,6 +59,7 @@ ${bold("Examples")}
   saas-audit --output report.pdf --output report.html  Shareable PDF and HTML reports
   saas-audit --fail-on high --format github            CI gate with GitHub annotations
   saas-audit show SEC031                               Drill into one rule
+  saas-audit --attack-layer layer.json                 Open in https://mitre-attack.github.io/attack-navigator/
 
 The scan never executes your code and never sends it anywhere.
 For full verification and fixes, use the Claude Code plugin: /saas-security-audit:audit
@@ -88,7 +91,7 @@ async function main(): Promise<number> {
     parsed = parseArgs({
       allowPositionals: true,
       options: {
-        root: { type: "string" }, format: { type: "string" }, json: { type: "boolean" }, output: { type: "string", multiple: true },
+        root: { type: "string" }, format: { type: "string" }, json: { type: "boolean" }, output: { type: "string", multiple: true }, "attack-layer": { type: "string" },
         "min-severity": { type: "string" }, "fail-on": { type: "string" }, baseline: { type: "string" },
         "no-animation": { type: "boolean" }, "no-update-check": { type: "boolean" }, "include-tests": { type: "boolean" }, offline: { type: "boolean" },
         "dry-run": { type: "boolean" }, yes: { type: "boolean", short: "y" }, "no-input": { type: "boolean" }, all: { type: "boolean" },
@@ -112,6 +115,7 @@ async function main(): Promise<number> {
     fail(format === "pdf" ? "PDF is binary; write it to a file with --output report.pdf" : `--format must be one of ${FORMATS.join(", ")}`);
   }
   const outputs = (a.output ?? []).map((o) => resolve(o.replace(/^~(?=$|\/)/, homedir())));
+  const layerFile = a["attack-layer"] ? resolve(a["attack-layer"].replace(/^~(?=$|\/)/, homedir())) : null;
   const minSeverity = (a["min-severity"] ?? "informational").toLowerCase();
   if (!SEVERITIES.includes(minSeverity)) fail(`--min-severity must be one of ${SEVERITIES.join(", ")}`);
   const failOn = (a["fail-on"] ?? "none").toLowerCase();
@@ -180,6 +184,10 @@ async function main(): Promise<number> {
       if (ext === "pdf") writeFileSync(target, renderPdf(result, { includeTests: includeTestsFlag }));
       else writeFileSync(target, ext === "json" ? JSON.stringify(result, null, 2)
         : ext === "html" || ext === "htm" ? renderHtml(result, { includeTests: includeTestsFlag }) : markdown(result), "utf8");
+    }
+    if (layerFile) {
+      mkdirSync(dirname(layerFile), { recursive: true });
+      writeFileSync(layerFile, JSON.stringify(attackLayer(result, basename(root)), null, 2) + "\n", "utf8");
     }
   };
   if (format === "pretty" && interactive) {

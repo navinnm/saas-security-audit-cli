@@ -4,7 +4,7 @@ process.env.SAAS_AUDIT_OFFLINE = "1";
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -170,12 +170,49 @@ test("standards and vibe review in terminal, CI text, HTML and PDF", async () =>
     assert.match(ci, /^owasp {7}A01=\d+/m);
     assert.match(ci, /^vibe {8}\d+\/12 found: V1/m);
     const pretty = spawnSync("node", [CLI, root, "--format", "pretty", "--no-update-check"], { encoding: "utf8", env: { ...process.env, NO_COLOR: "1" } }).stdout;
-    for (const s of ["VIBE-CODE REVIEW", "STANDARDS", "API Top 10", "LLM Top 10", "Frameworks", "OWASP A03:2021 · CWE-89"]) assert.ok(pretty.includes(s), `missing ${s}`);
+    for (const s of ["VIBE-CODE REVIEW", "STANDARDS", "API Top 10", "LLM Top 10", "ATT&CK", "Frameworks", "OWASP A03:2021 · CWE-89"]) assert.ok(pretty.includes(s), `missing ${s}`);
     const html = renderHtml(result);
     for (const s of ["Vibe-code review", "OWASP Top 10 (2021)", "OWASP API Security Top 10 (2023)", "Compliance frameworks", "does not demonstrate compliance"]) {
       assert.ok(html.includes(s), `html missing ${s}`);
     }
     const pdf = renderPdf(result).toString("latin1");
     assert.ok(pdf.startsWith("%PDF-") && pdf.trimEnd().endsWith("%%EOF"));
+  });
+});
+
+test("MITRE ATT&CK, ATLAS, D3FEND and NIST CSF mappings, and the Navigator layer", async () => {
+  const { renderHtml } = await import("../dist/html.js");
+  const { markdown } = await import("../dist/report.js");
+  const { R } = await import("../dist/rules.js");
+  // Every rule's IDs resolve to a name, so no report shows a bare, unknown ID.
+  for (const [rid, s] of Object.entries(R.standards)) {
+    for (const t of s.attack) assert.match(t, /^T\d{4}(\.\d{3})?$/, rid), assert.ok(R.attack_techniques[t], `${rid}: ${t} unnamed`);
+    for (const t of s.atlas) assert.match(t, /^AML\.T\d{4}(\.\d{3})?$/, rid), assert.ok(R.atlas_techniques[t], `${rid}: ${t} unnamed`);
+    for (const t of s.d3fend) assert.match(t, /^D3-[A-Z]+$/, rid), assert.ok(R.d3fend_techniques[t], `${rid}: ${t} unnamed`);
+  }
+  await withResult({ ...FIXTURES.vulnerableSaas, ...FIXTURES.vibeCoded }, (result, root) => {
+    const sqli = result.findings.find((f) => f.id === "SEC003");
+    assert.deepEqual(sqli.standards.attack, ["T1190"]);
+    assert.ok(sqli.standards.d3fend.includes("D3-DQSA"));
+    const t1190 = result.standards.mitre_attack.find((t) => t.id === "T1190");
+    assert.ok(t1190.leads > 0 && t1190.found.includes("SEC003"));
+    assert.equal(result.standards.mitre_attack[0].leads >= result.standards.mitre_attack.at(-1).leads, true, "leads first");
+    assert.ok(result.standards.frameworks.some((f) => f.id === "nist_csf" && f.requirements.length));
+    const md = markdown(result);
+    for (const s of ["### MITRE ATT&CK (v", "### MITRE ATLAS (", "### MITRE D3FEND (", "**NIST CSF 2.0:**", "· T1190"]) assert.ok(md.includes(s), `md missing ${s}`);
+    const html = renderHtml(result);
+    for (const s of ["MITRE ATT&amp;CK (v", "ATT&amp;CK T1190", "D3FEND D3-"]) assert.ok(html.includes(s), `html missing ${s}`);
+
+    const out = join(root, "out", "layer.json");
+    const run = spawnSync("node", [CLI, root, "--format", "text", "--no-update-check", "--attack-layer", out], { encoding: "utf8" });
+    assert.equal(run.status, 0, run.stderr);
+    const layer = JSON.parse(readFileSync(out, "utf8"));
+    assert.equal(layer.domain, "enterprise-attack");
+    assert.equal(layer.versions.layer, "4.5");
+    assert.equal(layer.techniques.length, result.standards.mitre_attack.length);
+    const hit = layer.techniques.find((t) => t.techniqueID === "T1190");
+    assert.ok(hit.score > 0 && /from .*SEC003/.test(hit.comment) && !hit.color);
+    const miss = layer.techniques.find((t) => t.score === 0);
+    assert.ok(miss && miss.color && /no leads/.test(miss.comment));
   });
 });

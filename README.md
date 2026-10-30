@@ -1,6 +1,6 @@
 # saas-security-audit — SaaS Security Scanner CLI
 
-**Scan any SaaS codebase in seconds for the security bugs that leak customer data:** cross-tenant access, IDOR/BOLA, missing Supabase row-level security (RLS), leaked secrets, SQL injection, permissive CORS, unsigned webhooks, SSRF, weak JWT sessions, and AI/LLM prompt injection. Every finding is tagged with **OWASP Top 10, OWASP API Top 10, OWASP LLM Top 10 and CWE** IDs, mapped to 22 SaaS security controls, and related to **ASVS, PCI DSS, SOC 2, ISO 27001 and NIST SSDF** requirements. A built-in **vibe-code review** flags the mistakes AI-generated apps make most often. It runs locally and read-only; the scan never touches the network.
+**Scan any SaaS codebase in seconds for the security bugs that leak customer data:** cross-tenant access, IDOR/BOLA, missing Supabase row-level security (RLS), leaked secrets, SQL injection, permissive CORS, unsigned webhooks, SSRF, weak JWT sessions, and AI/LLM prompt injection. Every finding is tagged with **OWASP Top 10, OWASP API Top 10, OWASP LLM Top 10, CWE, MITRE ATT&CK, ATLAS and D3FEND** IDs, mapped to 22 SaaS security controls, and related to **ASVS, PCI DSS, SOC 2, ISO 27001, NIST SSDF and NIST CSF 2.0** requirements. A built-in **vibe-code review** flags the mistakes AI-generated apps make most often. It runs locally and read-only; the scan never touches the network.
 
 ```bash
 npx saas-security-audit
@@ -70,6 +70,7 @@ saas-audit show <rule> [path]        Every location, snippet and fix for one rul
 saas-audit update                    Update to the latest version
 
   --output <file>                    Write a report; repeatable. Format from extension: .pdf .html .json .md
+  --attack-layer <file>              Write a MITRE ATT&CK Navigator layer (.json) of checked techniques and leads
   --fail-on <level>                  Exit 1 on a lead at/above: low | medium | high | critical (CI gate)
   --format <format>                  pretty | text | github | markdown | json | html
                                      (default: pretty in a terminal, text when piped or in CI)
@@ -107,11 +108,20 @@ Every finding carries its standards, and every report (terminal, PDF, HTML, JSON
 | **OWASP API Security Top 10 (2023)** | API1–API10; categories no rule can check are marked "not checked" instead of passing |
 | **OWASP Top 10 for LLM Applications (2025)** | Prompt injection (LLM01), improper output handling (LLM05), secrets in the browser (LLM02) |
 | **CWE**, with **CWE Top 25 (2024)** flags | Exact weakness IDs, e.g. CWE-89 SQL Injection, CWE-862 Missing Authorization |
-| **OWASP ASVS 4.0.3, PCI DSS 4.0, SOC 2, ISO/IEC 27001:2022, NIST SSDF** | Related requirements per lead (e.g. PCI DSS 6.2.4, 8.6.2; ISO A.8.28; SSDF PW.5) |
+| **OWASP ASVS 4.0.3, PCI DSS 4.0, SOC 2, ISO/IEC 27001:2022, NIST SSDF, NIST CSF 2.0** | Related requirements per lead (e.g. PCI DSS 6.2.4, 8.6.2; ISO A.8.28; SSDF PW.5; CSF PR.AA-05) |
+| **MITRE ATT&CK v20.0** | The technique an attacker could use against each weakness, e.g. T1190 Exploit Public-Facing Application, T1552.001 Credentials In Files |
+| **MITRE ATLAS 2026.10** | AI-specific techniques for the LLM rules, e.g. AML.T0051 LLM Prompt Injection, AML.T0053 AI Agent Tool Invocation |
+| **MITRE D3FEND 1.6.0** | The countermeasure each fix applies, e.g. D3-DQSA Database Query String Analysis, D3-MAN Message Authentication |
+
+Every ATT&CK, ATLAS and D3FEND ID was checked against MITRE's published data. To see the scan as a heat map, export a Navigator layer and open it in the [ATT&CK Navigator](https://mitre-attack.github.io/attack-navigator/) (Open Existing Layer → Upload from local):
+
+```bash
+saas-audit --attack-layer attack-layer.json
+```
 
 The **vibe-code review** checks the 12 mistakes AI-generated ("vibe-coded") apps make most often: secret keys reachable from the browser, tables open without RLS, authorization only in the UI, security left as a TODO, tokens in localStorage, mass assignment, unsigned webhooks, wide-open CORS, hard-coded credentials, string-built SQL/shell, untrusted text in LLM prompts, and weak sessions.
 
-> Mappings are indicative. A code scan alone does not demonstrate compliance with PCI DSS, SOC 2, ISO/IEC 27001, NIST SSDF or OWASP ASVS, and "not found" is never reported as "passed".
+> Mappings are indicative. A code scan alone does not demonstrate compliance with PCI DSS, SOC 2, ISO/IEC 27001, NIST SSDF, NIST CSF or OWASP ASVS, and "not found" is never reported as "passed".
 
 ### Reports: PDF, HTML, JSON, Markdown
 
@@ -172,7 +182,7 @@ npm test                       # builds, runs engine, code-flow and UI tests
 SAAS_AUDIT_PARITY=1 npm test   # also compare the line rules with the plugin's scripts/scan.py
 ```
 
-`rules.json` holds the line rules and the rule metadata (titles, OWASP/CWE mapping, vibe-code groups) and is edited here; it started as an export of the plugin's scanner (`npm run sync-rules` would overwrite it). The code-flow analysis lives in `src/flow.ts` (rules SEC044–SEC049), with planted-bug tests in `test/flow.test.mjs`.
+`rules.json` holds the line rules and the rule metadata (titles, OWASP/CWE/MITRE mapping, vibe-code groups) and is edited here; it started as an export of the plugin's scanner (`npm run sync-rules` would overwrite it). The code-flow analysis lives in `src/flow.ts` (rules SEC044–SEC049), with planted-bug tests in `test/flow.test.mjs`.
 
 ## License
 

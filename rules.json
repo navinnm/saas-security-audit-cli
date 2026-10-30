@@ -1,6 +1,6 @@
 {
  "generated_from": "saas-security-audit CLI (started from the plugin's scripts/scan.py 0.4.0; the CLI is now the source of truth)",
- "version": "0.5.0",
+ "version": "0.6.0",
  "schema_version": 3,
  "controls": [
   "Row-level security and tenant isolation",
@@ -2364,7 +2364,15 @@
    "cwe": [
     "CWE-798"
    ],
-   "kind": "secrets"
+   "kind": "secrets",
+   "attack": [
+    "T1552.001"
+   ],
+   "atlas": [],
+   "d3fend": [
+    "D3-CS",
+    "D3-CRO"
+   ]
   },
   "SEC002": {
    "owasp": "A03",
@@ -2373,7 +2381,16 @@
    "cwe": [
     "CWE-95"
    ],
-   "kind": "injection"
+   "kind": "injection",
+   "attack": [
+    "T1190",
+    "T1059.007"
+   ],
+   "atlas": [],
+   "d3fend": [
+    "D3-CV",
+    "D3-AH"
+   ]
   },
   "SEC003": {
    "owasp": "A03",
@@ -2382,7 +2399,15 @@
    "cwe": [
     "CWE-89"
    ],
-   "kind": "injection"
+   "kind": "injection",
+   "attack": [
+    "T1190"
+   ],
+   "atlas": [],
+   "d3fend": [
+    "D3-DQSA",
+    "D3-CV"
+   ]
   },
   "SEC004": {
    "owasp": "A05",
@@ -2393,7 +2418,15 @@
    "cwe": [
     "CWE-489"
    ],
-   "kind": "config"
+   "kind": "config",
+   "attack": [
+    "T1190",
+    "T1592.002"
+   ],
+   "atlas": [],
+   "d3fend": [
+    "D3-ACH"
+   ]
   },
   "SEC005": {
    "owasp": "A05",
@@ -2404,7 +2437,12 @@
    "cwe": [
     "CWE-942"
    ],
-   "kind": "config"
+   "kind": "config",
+   "attack": [],
+   "atlas": [],
+   "d3fend": [
+    "D3-ACH"
+   ]
   },
   "SEC006": {
    "owasp": "A02",
@@ -2415,7 +2453,15 @@
    "cwe": [
     "CWE-319"
    ],
-   "kind": "transport"
+   "kind": "transport",
+   "attack": [
+    "T1557"
+   ],
+   "atlas": [],
+   "d3fend": [
+    "D3-ET",
+    "D3-MENCR"
+   ]
   },
   "SEC007": {
    "owasp": "A05",
@@ -2427,7 +2473,15 @@
     "CWE-614",
     "CWE-1004"
    ],
-   "kind": "transport"
+   "kind": "transport",
+   "attack": [
+    "T1539"
+   ],
+   "atlas": [],
+   "d3fend": [
+    "D3-ACH",
+    "D3-WSAM"
+   ]
   },
   "SEC011": {
    "owasp": "A09",
@@ -2436,7 +2490,14 @@
    "cwe": [
     "CWE-532"
    ],
-   "kind": "logging"
+   "kind": "logging",
+   "attack": [
+    "T1552"
+   ],
+   "atlas": [],
+   "d3fend": [
+    "D3-CS"
+   ]
   },
   "SEC012": {
    "owasp": "A07",
@@ -2445,7 +2506,15 @@
    "cwe": [
     "CWE-798"
    ],
-   "kind": "secrets"
+   "kind": "secrets",
+   "attack": [
+    "T1552.001"
+   ],
+   "atlas": [],
+   "d3fend": [
+    "D3-CS",
+    "D3-CRO"
+   ]
   },
   "SEC013": {
    "owasp": "A03",
@@ -2454,7 +2523,16 @@
    "cwe": [
     "CWE-78"
    ],
-   "kind": "injection"
+   "kind": "injection",
+   "attack": [
+    "T1190",
+    "T1059.004"
+   ],
+   "atlas": [],
+   "d3fend": [
+    "D3-CV",
+    "D3-EI"
+   ]
   },
   "SEC014": {
    "owasp": "A08",
@@ -2463,7 +2541,15 @@
    "cwe": [
     "CWE-502"
    ],
-   "kind": "integrity"
+   "kind": "integrity",
+   "attack": [
+    "T1190"
+   ],
+   "atlas": [],
+   "d3fend": [
+    "D3-CV",
+    "D3-VTV"
+   ]
   },
   "SEC015": {
    "owasp": "A03",
@@ -2472,7 +2558,15 @@
    "cwe": [
     "CWE-79"
    ],
-   "kind": "injection"
+   "kind": "injection",
+   "attack": [
+    "T1059.007",
+    "T1539"
+   ],
+   "atlas": [],
+   "d3fend": [
+    "D3-CV"
+   ]
   },
   "SEC016": {
    "owasp": "A02",
@@ -2483,7 +2577,15 @@
    "cwe": [
     "CWE-295"
    ],
-   "kind": "transport"
+   "kind": "transport",
+   "attack": [
+    "T1557"
+   ],
+   "atlas": [],
+   "d3fend": [
+    "D3-CA",
+    "D3-ET"
+   ]
   },
   "SEC017": {
    "owasp": "A07",
@@ -2494,7 +2596,16 @@
    "cwe": [
     "CWE-347"
    ],
-   "kind": "auth"
+   "kind": "auth",
+   "attack": [
+    "T1606",
+    "T1550.001"
+   ],
+   "atlas": [],
+   "d3fend": [
+    "D3-TBA",
+    "D3-MAN"
+   ]
   },
   "SEC018": {
    "owasp": "A01",
@@ -2503,7 +2614,12 @@
    "cwe": [
     "CWE-352"
    ],
-   "kind": "access"
+   "kind": "access",
+   "attack": [],
+   "atlas": [],
+   "d3fend": [
+    "D3-WSAM"
+   ]
   },
   "SEC019": {
    "owasp": "A08",
@@ -2514,7 +2630,15 @@
    "cwe": [
     "CWE-915"
    ],
-   "kind": "access"
+   "kind": "access",
+   "attack": [
+    "T1190"
+   ],
+   "atlas": [],
+   "d3fend": [
+    "D3-CV",
+    "D3-DLV"
+   ]
   },
   "SEC020": {
    "owasp": "A10",
@@ -2525,7 +2649,16 @@
    "cwe": [
     "CWE-918"
    ],
-   "kind": "ssrf"
+   "kind": "ssrf",
+   "attack": [
+    "T1190",
+    "T1552.005"
+   ],
+   "atlas": [],
+   "d3fend": [
+    "D3-OTF",
+    "D3-CV"
+   ]
   },
   "SEC021": {
    "owasp": "A02",
@@ -2534,7 +2667,12 @@
    "cwe": [
     "CWE-338"
    ],
-   "kind": "crypto"
+   "kind": "crypto",
+   "attack": [],
+   "atlas": [],
+   "d3fend": [
+    "D3-CH"
+   ]
   },
   "SEC022": {
    "owasp": "A01",
@@ -2545,7 +2683,16 @@
    "cwe": [
     "CWE-863"
    ],
-   "kind": "access"
+   "kind": "access",
+   "attack": [
+    "T1190",
+    "T1213"
+   ],
+   "atlas": [],
+   "d3fend": [
+    "D3-UAP",
+    "D3-NRAM"
+   ]
   },
   "SEC023": {
    "owasp": "A01",
@@ -2554,7 +2701,15 @@
    "cwe": [
     "CWE-200"
    ],
-   "kind": "secrets"
+   "kind": "secrets",
+   "attack": [
+    "T1552.001"
+   ],
+   "atlas": [],
+   "d3fend": [
+    "D3-CS",
+    "D3-CTS"
+   ]
   },
   "SEC024": {
    "owasp": "A02",
@@ -2563,7 +2718,15 @@
    "cwe": [
     "CWE-916"
    ],
-   "kind": "crypto"
+   "kind": "crypto",
+   "attack": [
+    "T1110.002"
+   ],
+   "atlas": [],
+   "d3fend": [
+    "D3-CH",
+    "D3-SPP"
+   ]
   },
   "SEC025": {
    "owasp": "A04",
@@ -2574,7 +2737,14 @@
    "cwe": [
     "CWE-209"
    ],
-   "kind": "design"
+   "kind": "design",
+   "attack": [
+    "T1592.002"
+   ],
+   "atlas": [],
+   "d3fend": [
+    "D3-ACH"
+   ]
   },
   "SEC026": {
    "owasp": "A01",
@@ -2583,7 +2753,15 @@
    "cwe": [
     "CWE-284"
    ],
-   "kind": "access"
+   "kind": "access",
+   "attack": [
+    "T1530"
+   ],
+   "atlas": [],
+   "d3fend": [
+    "D3-UAP",
+    "D3-RFAM"
+   ]
   },
   "SEC027": {
    "owasp": "A01",
@@ -2592,7 +2770,14 @@
    "cwe": [
     "CWE-601"
    ],
-   "kind": "access"
+   "kind": "access",
+   "attack": [
+    "T1566.002"
+   ],
+   "atlas": [],
+   "d3fend": [
+    "D3-CV"
+   ]
   },
   "SEC028": {
    "owasp": "A01",
@@ -2601,7 +2786,16 @@
    "cwe": [
     "CWE-22"
    ],
-   "kind": "access"
+   "kind": "access",
+   "attack": [
+    "T1190",
+    "T1005"
+   ],
+   "atlas": [],
+   "d3fend": [
+    "D3-CV",
+    "D3-LFAM"
+   ]
   },
   "SEC029": {
    "owasp": "A03",
@@ -2610,7 +2804,15 @@
    "cwe": [
     "CWE-943"
    ],
-   "kind": "injection"
+   "kind": "injection",
+   "attack": [
+    "T1190"
+   ],
+   "atlas": [],
+   "d3fend": [
+    "D3-DQSA",
+    "D3-VTV"
+   ]
   },
   "SEC030": {
    "owasp": "A01",
@@ -2621,7 +2823,16 @@
    "cwe": [
     "CWE-862"
    ],
-   "kind": "access"
+   "kind": "access",
+   "attack": [
+    "T1190",
+    "T1213"
+   ],
+   "atlas": [],
+   "d3fend": [
+    "D3-NRAM",
+    "D3-UAP"
+   ]
   },
   "SEC031": {
    "owasp": "A08",
@@ -2632,7 +2843,14 @@
    "cwe": [
     "CWE-345"
    ],
-   "kind": "integrity"
+   "kind": "integrity",
+   "attack": [
+    "T1190"
+   ],
+   "atlas": [],
+   "d3fend": [
+    "D3-MAN"
+   ]
   },
   "SEC032": {
    "owasp": "A01",
@@ -2641,7 +2859,14 @@
    "cwe": [
     "CWE-538"
    ],
-   "kind": "secrets"
+   "kind": "secrets",
+   "attack": [
+    "T1552.001"
+   ],
+   "atlas": [],
+   "d3fend": [
+    "D3-CS"
+   ]
   },
   "SEC033": {
    "owasp": "A06",
@@ -2650,7 +2875,15 @@
    "cwe": [
     "CWE-1104"
    ],
-   "kind": "components"
+   "kind": "components",
+   "attack": [
+    "T1195.001"
+   ],
+   "atlas": [],
+   "d3fend": [
+    "D3-SWI",
+    "D3-TL"
+   ]
   },
   "SEC034": {
    "owasp": "A07",
@@ -2661,7 +2894,13 @@
    "cwe": [
     "CWE-294"
    ],
-   "kind": "integrity"
+   "kind": "integrity",
+   "attack": [],
+   "atlas": [],
+   "d3fend": [
+    "D3-MAN",
+    "D3-DLV"
+   ]
   },
   "SEC035": {
    "owasp": "A03",
@@ -2672,7 +2911,14 @@
    "cwe": [
     "CWE-1427"
    ],
-   "kind": "ai"
+   "kind": "ai",
+   "attack": [],
+   "atlas": [
+    "AML.T0051"
+   ],
+   "d3fend": [
+    "D3-CV"
+   ]
   },
   "SEC036": {
    "owasp": "A03",
@@ -2683,7 +2929,18 @@
    "cwe": [
     "CWE-1426"
    ],
-   "kind": "ai"
+   "kind": "ai",
+   "attack": [
+    "T1059"
+   ],
+   "atlas": [
+    "AML.T0053",
+    "AML.T0050"
+   ],
+   "d3fend": [
+    "D3-CV",
+    "D3-EI"
+   ]
   },
   "SEC037": {
    "owasp": "A07",
@@ -2694,7 +2951,15 @@
    "cwe": [
     "CWE-613"
    ],
-   "kind": "auth"
+   "kind": "auth",
+   "attack": [
+    "T1550.001"
+   ],
+   "atlas": [],
+   "d3fend": [
+    "D3-ST",
+    "D3-CRO"
+   ]
   },
   "SEC038": {
    "owasp": "A01",
@@ -2705,7 +2970,16 @@
    "cwe": [
     "CWE-284"
    ],
-   "kind": "access"
+   "kind": "access",
+   "attack": [
+    "T1190",
+    "T1213"
+   ],
+   "atlas": [],
+   "d3fend": [
+    "D3-NRAM",
+    "D3-UAP"
+   ]
   },
   "SEC039": {
    "owasp": "A01",
@@ -2716,7 +2990,16 @@
    "cwe": [
     "CWE-639"
    ],
-   "kind": "access"
+   "kind": "access",
+   "attack": [
+    "T1190",
+    "T1213"
+   ],
+   "atlas": [],
+   "d3fend": [
+    "D3-NRAM",
+    "D3-DLV"
+   ]
   },
   "SEC040": {
    "owasp": "A04",
@@ -2727,7 +3010,15 @@
    "cwe": [
     "CWE-602"
    ],
-   "kind": "access"
+   "kind": "access",
+   "attack": [
+    "T1190"
+   ],
+   "atlas": [],
+   "d3fend": [
+    "D3-DLV",
+    "D3-WSAM"
+   ]
   },
   "SEC041": {
    "owasp": "A01",
@@ -2736,7 +3027,15 @@
    "cwe": [
     "CWE-922"
    ],
-   "kind": "auth"
+   "kind": "auth",
+   "attack": [
+    "T1539"
+   ],
+   "atlas": [],
+   "d3fend": [
+    "D3-ACH",
+    "D3-TB"
+   ]
   },
   "SEC042": {
    "owasp": "A01",
@@ -2747,7 +3046,17 @@
    "cwe": [
     "CWE-200"
    ],
-   "kind": "secrets"
+   "kind": "secrets",
+   "attack": [
+    "T1552.001"
+   ],
+   "atlas": [
+    "AML.T0055"
+   ],
+   "d3fend": [
+    "D3-CS",
+    "D3-CTS"
+   ]
   },
   "SEC043": {
    "owasp": "A04",
@@ -2756,7 +3065,10 @@
    "cwe": [
     "CWE-546"
    ],
-   "kind": "design"
+   "kind": "design",
+   "attack": [],
+   "atlas": [],
+   "d3fend": []
   },
   "SEC044": {
    "owasp": "A01",
@@ -2768,7 +3080,15 @@
    "cwe": [
     "CWE-306"
    ],
-   "kind": "access"
+   "kind": "access",
+   "attack": [
+    "T1190"
+   ],
+   "atlas": [],
+   "d3fend": [
+    "D3-WSAM",
+    "D3-TBA"
+   ]
   },
   "SEC045": {
    "owasp": "A01",
@@ -2779,7 +3099,16 @@
    "cwe": [
     "CWE-639"
    ],
-   "kind": "access"
+   "kind": "access",
+   "attack": [
+    "T1190",
+    "T1213"
+   ],
+   "atlas": [],
+   "d3fend": [
+    "D3-NRAM",
+    "D3-DLV"
+   ]
   },
   "SEC046": {
    "owasp": "A08",
@@ -2790,7 +3119,15 @@
    "cwe": [
     "CWE-915"
    ],
-   "kind": "access"
+   "kind": "access",
+   "attack": [
+    "T1190"
+   ],
+   "atlas": [],
+   "d3fend": [
+    "D3-CV",
+    "D3-DLV"
+   ]
   },
   "SEC047": {
    "owasp": "A01",
@@ -2802,7 +3139,14 @@
     "CWE-639",
     "CWE-602"
    ],
-   "kind": "access"
+   "kind": "access",
+   "attack": [
+    "T1190"
+   ],
+   "atlas": [],
+   "d3fend": [
+    "D3-DLV"
+   ]
   },
   "SEC048": {
    "owasp": "A03",
@@ -2812,7 +3156,16 @@
     "CWE-89",
     "CWE-78"
    ],
-   "kind": "injection"
+   "kind": "injection",
+   "attack": [
+    "T1190",
+    "T1059"
+   ],
+   "atlas": [],
+   "d3fend": [
+    "D3-CV",
+    "D3-DQSA"
+   ]
   },
   "SEC049": {
    "owasp": "A10",
@@ -2824,7 +3177,16 @@
     "CWE-918",
     "CWE-601"
    ],
-   "kind": "ssrf"
+   "kind": "ssrf",
+   "attack": [
+    "T1190",
+    "T1552.005"
+   ],
+   "atlas": [],
+   "d3fend": [
+    "D3-OTF",
+    "D3-CV"
+   ]
   },
   "SEC050": {
    "owasp": "A06",
@@ -2833,7 +3195,15 @@
    "cwe": [
     "CWE-1395"
    ],
-   "kind": "components"
+   "kind": "components",
+   "attack": [
+    "T1195.001"
+   ],
+   "atlas": [],
+   "d3fend": [
+    "D3-SU",
+    "D3-SWI"
+   ]
   },
   "SEC051": {
    "owasp": "A06",
@@ -2842,7 +3212,14 @@
    "cwe": [
     "CWE-1104"
    ],
-   "kind": "components"
+   "kind": "components",
+   "attack": [
+    "T1195.001"
+   ],
+   "atlas": [],
+   "d3fend": [
+    "D3-SU"
+   ]
   },
   "SEC052": {
    "owasp": "A05",
@@ -2853,7 +3230,15 @@
    "cwe": [
     "CWE-250"
    ],
-   "kind": "config"
+   "kind": "config",
+   "attack": [
+    "T1611"
+   ],
+   "atlas": [],
+   "d3fend": [
+    "D3-UAP",
+    "D3-EI"
+   ]
   },
   "SEC053": {
    "owasp": "A07",
@@ -2862,7 +3247,15 @@
    "cwe": [
     "CWE-798"
    ],
-   "kind": "secrets"
+   "kind": "secrets",
+   "attack": [
+    "T1552.001"
+   ],
+   "atlas": [],
+   "d3fend": [
+    "D3-CS",
+    "D3-CRO"
+   ]
   },
   "SEC054": {
    "owasp": "A08",
@@ -2871,7 +3264,16 @@
    "cwe": [
     "CWE-829"
    ],
-   "kind": "components"
+   "kind": "components",
+   "attack": [
+    "T1195.001",
+    "T1195.002"
+   ],
+   "atlas": [],
+   "d3fend": [
+    "D3-TL",
+    "D3-CIA"
+   ]
   },
   "SEC055": {
    "owasp": "A05",
@@ -2882,7 +3284,16 @@
    "cwe": [
     "CWE-284"
    ],
-   "kind": "config"
+   "kind": "config",
+   "attack": [
+    "T1190",
+    "T1530"
+   ],
+   "atlas": [],
+   "d3fend": [
+    "D3-ITF",
+    "D3-NI"
+   ]
   },
   "SEC056": {
    "owasp": "A05",
@@ -2894,7 +3305,16 @@
     "CWE-1188",
     "CWE-306"
    ],
-   "kind": "config"
+   "kind": "config",
+   "attack": [
+    "T1190",
+    "T1078.001"
+   ],
+   "atlas": [],
+   "d3fend": [
+    "D3-ITF",
+    "D3-CDP"
+   ]
   },
   "SEC057": {
    "owasp": "A08",
@@ -2904,7 +3324,16 @@
     "CWE-829",
     "CWE-78"
    ],
-   "kind": "integrity"
+   "kind": "integrity",
+   "attack": [
+    "T1195.002",
+    "T1552.001"
+   ],
+   "atlas": [],
+   "d3fend": [
+    "D3-EI",
+    "D3-UAP"
+   ]
   },
   "SEC058": {
    "owasp": "A05",
@@ -2915,7 +3344,15 @@
    "cwe": [
     "CWE-250"
    ],
-   "kind": "config"
+   "kind": "config",
+   "attack": [
+    "T1611"
+   ],
+   "atlas": [],
+   "d3fend": [
+    "D3-EI",
+    "D3-SCF"
+   ]
   }
  },
  "owasp_top10": {
@@ -3256,6 +3693,56 @@
      "PW.5"
     ]
    }
+  },
+  {
+   "id": "nist_csf",
+   "name": "NIST CSF 2.0",
+   "mapping": {
+    "access": [
+     "PR.AA-05"
+    ],
+    "ai": [
+     "PR.PS-06"
+    ],
+    "auth": [
+     "PR.AA-03",
+     "PR.AA-01"
+    ],
+    "components": [
+     "ID.RA-01",
+     "PR.PS-02"
+    ],
+    "config": [
+     "PR.PS-01",
+     "PR.IR-01"
+    ],
+    "crypto": [
+     "PR.DS-01"
+    ],
+    "design": [
+     "PR.PS-06"
+    ],
+    "injection": [
+     "PR.PS-06"
+    ],
+    "integrity": [
+     "PR.DS-01",
+     "PR.PS-06"
+    ],
+    "logging": [
+     "PR.PS-04"
+    ],
+    "secrets": [
+     "PR.AA-01",
+     "PR.DS-01"
+    ],
+    "ssrf": [
+     "PR.IR-01"
+    ],
+    "transport": [
+     "PR.DS-02"
+    ]
+   }
   }
  ],
  "framework_ref_names": {
@@ -3283,9 +3770,20 @@
   "PW.4": "Reuse existing, well-secured software",
   "PW.5": "Adhere to secure coding practices",
   "PW.9": "Secure settings by default",
-  "RV.1": "Identify and confirm vulnerabilities"
+  "RV.1": "Identify and confirm vulnerabilities",
+  "PR.AA-01": "Identities and credentials are managed",
+  "PR.AA-03": "Users, services and hardware are authenticated",
+  "PR.AA-05": "Access permissions are managed with least privilege",
+  "PR.DS-01": "Data-at-rest is protected",
+  "PR.DS-02": "Data-in-transit is protected",
+  "PR.PS-01": "Configuration management practices are applied",
+  "PR.PS-02": "Software is maintained, replaced and removed",
+  "PR.PS-04": "Log records are generated",
+  "PR.PS-06": "Secure software development practices are integrated",
+  "PR.IR-01": "Networks are protected from unauthorized access",
+  "ID.RA-01": "Vulnerabilities in assets are identified"
  },
- "standards_note": "Mappings are indicative: they show which requirements a lead relates to. A code scan alone does not demonstrate compliance with PCI DSS, SOC 2, ISO/IEC 27001, NIST SSDF or OWASP ASVS.",
+ "standards_note": "Mappings are indicative: they show which requirements a lead relates to. A code scan alone does not demonstrate compliance with PCI DSS, SOC 2, ISO/IEC 27001, NIST SSDF, NIST CSF or OWASP ASVS. MITRE ATT&CK and ATLAS IDs name the technique an attacker could use against a weakness like this; D3FEND IDs name the countermeasure the fix applies.",
  "vibe_checks": [
   {
    "id": "V1",
@@ -3392,5 +3890,74 @@
  "secret_guidance": {
   "SEC001": "Confirm whether the value is real. If so, rotate it, remove it from history, and load it from a secret store.",
   "SEC012": "Treat as exposed: rotate first, then purge from git history and move to a secret store."
+ },
+ "attack_techniques": {
+  "T1005": "Data from Local System",
+  "T1059": "Command and Scripting Interpreter",
+  "T1059.004": "Unix Shell",
+  "T1059.007": "JavaScript",
+  "T1078.001": "Default Accounts",
+  "T1110.002": "Password Cracking",
+  "T1190": "Exploit Public-Facing Application",
+  "T1195.001": "Compromise Software Dependencies and Development Tools",
+  "T1195.002": "Compromise Software Supply Chain",
+  "T1213": "Data from Information Repositories",
+  "T1530": "Data from Cloud Storage",
+  "T1539": "Steal Web Session Cookie",
+  "T1550.001": "Application Access Token",
+  "T1552": "Unsecured Credentials",
+  "T1552.001": "Credentials In Files",
+  "T1552.005": "Cloud Instance Metadata API",
+  "T1557": "Adversary-in-the-Middle",
+  "T1566.002": "Spearphishing Link",
+  "T1592.002": "Software",
+  "T1606": "Forge Web Credentials",
+  "T1611": "Escape to Host"
+ },
+ "atlas_techniques": {
+  "AML.T0050": "Command and Scripting Interpreter",
+  "AML.T0051": "LLM Prompt Injection",
+  "AML.T0053": "AI Agent Tool Invocation",
+  "AML.T0055": "Unsecured Credentials"
+ },
+ "d3fend_techniques": {
+  "D3-AH": "Application Hardening",
+  "D3-ACH": "Application Configuration Hardening",
+  "D3-CA": "Certificate Analysis",
+  "D3-CDP": "Change Default Password",
+  "D3-CH": "Credential Hardening",
+  "D3-CIA": "Container Image Analysis",
+  "D3-CRO": "Credential Rotation",
+  "D3-CS": "Credential Scrubbing",
+  "D3-CTS": "Credential Transmission Scoping",
+  "D3-CV": "Content Validation",
+  "D3-DLV": "Domain Logic Validation",
+  "D3-DQSA": "Database Query String Analysis",
+  "D3-EI": "Execution Isolation",
+  "D3-ET": "Encrypted Tunnels",
+  "D3-ITF": "Inbound Traffic Filtering",
+  "D3-LFAM": "Local File Access Mediation",
+  "D3-MAN": "Message Authentication",
+  "D3-MENCR": "Message Encryption",
+  "D3-NI": "Network Isolation",
+  "D3-NRAM": "Network Resource Access Mediation",
+  "D3-OTF": "Outbound Traffic Filtering",
+  "D3-RFAM": "Remote File Access Mediation",
+  "D3-SCF": "System Call Filtering",
+  "D3-SPP": "Strong Password Policy",
+  "D3-ST": "Session Termination",
+  "D3-SU": "Software Update",
+  "D3-SWI": "Software Inventory",
+  "D3-TB": "Token Binding",
+  "D3-TBA": "Token-based Authentication",
+  "D3-TL": "Trusted Library",
+  "D3-UAP": "User Account Permissions",
+  "D3-VTV": "Variable Type Validation",
+  "D3-WSAM": "Web Session Access Mediation"
+ },
+ "threat_framework_versions": {
+  "attack": "20.0",
+  "atlas": "2026.10",
+  "d3fend": "1.6.0"
  }
 }

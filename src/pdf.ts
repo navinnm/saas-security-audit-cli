@@ -5,6 +5,7 @@
 import { deflateSync } from "node:zlib";
 import type { Finding } from "./engine.js";
 import type { Result } from "./report.js";
+import { standardsLabels } from "./standards.js";
 import { CLI_VERSION as VERSION } from "./version.js";
 import { buildView, CONTROL_SHORT, formatDate, SEVERITY_ORDER, type CoverageRow } from "./view.js";
 
@@ -325,7 +326,7 @@ function findingsTable(L: Layout, findings: Finding[], withEvidence: boolean): v
     const titleLines = wrap(f.title, "F2", 8.5, bodyW, 3);
     const locText = `${f.file}:${f.line}${f.context === "source" ? "" : `  (${f.context})`}`;
     const locLines = wrap(locText, "F3", 7.5, bodyW, 3);
-    const tags = f.standards ? [f.standards.owasp ? `OWASP ${f.standards.owasp}` : "", ...f.standards.owasp_api.map((a) => `OWASP ${a}`), ...f.standards.owasp_llm.map((a) => `OWASP ${a}`), ...f.standards.cwe].filter(Boolean) : [];
+    const tags = standardsLabels(f.standards);
     const metaLines = wrap(`C${f.controls[0]} ${CONTROL_SHORT[f.controls[0] - 1]} · confidence ${f.confidence}${tags.length ? " · " + tags.join(" · ") : ""}`, "F1", 7, bodyW);
     const evLines = withEvidence ? wrap(f.evidence, "F3", 7, bodyW - 12, 3) : [];
     const fixLines = withEvidence ? wrap(`Remediation: ${f.guidance}`, "F1", 7.5, bodyW, 4) : [];
@@ -529,10 +530,10 @@ export function renderPdf(result: Result, opts: { includeTests?: boolean; now?: 
   // 6 Standards mapping
   const st = result.standards;
   L.heading("Standards mapping", st.note);
-  const stdTable = (title: string, rs: typeof st.owasp_top10_2021) => {
+  const stdTable = (title: string, rs: typeof st.owasp_top10_2021, kind = "Category") => {
     L.sub(title);
     const cols = { id: M + 6, name: M + 56, n: M + 310, rules: M + 324 };
-    const header = L.tableHeader([["ID", cols.id], ["Category", cols.name], ["Leads", cols.n, "right"], ["Rules", cols.rules]]);
+    const header = L.tableHeader([["ID", cols.id], [kind, cols.name], ["Leads", cols.n, "right"], ["Rules", cols.rules]]);
     header();
     L.repeatOnNewPage(header);
     for (const r of rs) {
@@ -579,6 +580,11 @@ export function renderPdf(result: Result, opts: { includeTests?: boolean; now?: 
     lines.forEach((l, i) => d.text(M + 150, L.y + 9 + i * 11, l, "F1", 8, fw.requirements.length ? C.body : C.muted));
     L.y += lines.length * 11 + 6;
     d.line(M, L.y - 2, M + CW, L.y - 2, C.rule, 0.3);
+  }
+  L.y += 6;
+  for (const [title, kind, rows] of [[`MITRE ATT&CK (v${st.versions.attack})`, "Technique", st.mitre_attack],
+    [`MITRE ATLAS (${st.versions.atlas})`, "Technique", st.mitre_atlas], [`MITRE D3FEND (${st.versions.d3fend}) countermeasures`, "Countermeasure", st.mitre_d3fend]] as const) {
+    stdTable(title, rows.map((t) => ({ ...t, checked: true })), kind);
   }
 
   // 7 Scope, method and limitations

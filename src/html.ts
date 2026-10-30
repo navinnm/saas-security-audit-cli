@@ -5,6 +5,7 @@
  */
 import type { Finding } from "./engine.js";
 import type { Result } from "./report.js";
+import { standardsLabels, type TechniqueRow } from "./standards.js";
 import { CLI_VERSION as VERSION } from "./version.js";
 import { buildView, controlLabel, formatDate, SEVERITY_ORDER, type CoverageRow, type View } from "./view.js";
 
@@ -18,12 +19,7 @@ const ref = (i: number, total: number) => `F-${String(i + 1).padStart(Math.max(2
 
 const sev = (s: string) => `<span class="sev ${SEV_KEY[s]}"><i></i>${SEV_LABEL[s]}</span>`;
 
-function stdTags(f: Finding): string {
-  const st = f.standards;
-  if (!st) return "";
-  const tags = [st.owasp ? `OWASP ${st.owasp}` : "", ...st.owasp_api.map((a) => `OWASP ${a}`), ...st.owasp_llm.map((l) => `OWASP ${l}`), ...st.cwe].filter(Boolean);
-  return tags.length ? tags.map(esc).join(" · ") : "";
-}
+const stdTags = (f: Finding) => standardsLabels(f.standards).map(esc).join(" · ");
 
 function findingRow(f: Finding, i: number, total: number, withEvidence: boolean): string {
   const k = SEV_KEY[f.severity];
@@ -65,6 +61,12 @@ ${result.vibe_review.map((v) => `<tr><td>${esc(v.title)}</td><td class="muted mo
 </tbody></table></section>`;
 }
 
+function techTable(title: string, kind: string, rows: TechniqueRow[]): string {
+  return `<h3>${esc(title)}</h3><table><thead><tr><th>ID</th><th>${kind}</th><th class="num">Leads</th><th>Rules</th></tr></thead><tbody>
+${rows.map((t) => `<tr><td class="mono${t.leads ? " strong" : ""}">${esc(t.id)}</td><td>${esc(t.name)}</td><td class="num${t.leads ? " strong" : ""}">${t.leads || "–"}</td>
+<td class="muted small">${esc(t.rules.join(", "))}</td></tr>`).join("")}</tbody></table>`;
+}
+
 function standardsHtml(result: Result, n: number): string {
   const s = result.standards;
   const table = (title: string, rows: typeof s.owasp_top10_2021) => `<h3>${title}</h3><table><thead><tr><th>ID</th><th>Category</th><th class="num">Leads</th><th>Rules</th></tr></thead><tbody>
@@ -82,7 +84,10 @@ ${table("OWASP Top 10 (2021)", s.owasp_top10_2021)}
 ${table("OWASP API Security Top 10 (2023)", s.owasp_api_2023)}
 ${table("OWASP Top 10 for LLM Applications (2025)", s.owasp_llm_2025)}
 <h3>CWE</h3>${cwe}
-<h3>Compliance frameworks</h3><table><thead><tr><th>Framework</th><th>Related requirements (leads)</th></tr></thead><tbody>${fws}</tbody></table></section>`;
+<h3>Compliance frameworks</h3><table><thead><tr><th>Framework</th><th>Related requirements (leads)</th></tr></thead><tbody>${fws}</tbody></table>
+${techTable(`MITRE ATT&CK (v${s.versions.attack})`, "Technique", s.mitre_attack)}
+${techTable(`MITRE ATLAS (${s.versions.atlas})`, "Technique", s.mitre_atlas)}
+${techTable(`MITRE D3FEND (${s.versions.d3fend}) countermeasures`, "Countermeasure", s.mitre_d3fend)}</section>`;
 }
 
 export function renderHtml(result: Result, opts: { includeTests?: boolean; now?: Date } = {}): string {

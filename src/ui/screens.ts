@@ -5,6 +5,7 @@
  */
 import type { Finding } from "../engine.js";
 import type { Result } from "../report.js";
+import { standardsLabels } from "../standards.js";
 import { topFolder, type Profile } from "../profile.js";
 import { RULE_TITLES, SEVERITY_RANK } from "../rules.js";
 import {
@@ -447,10 +448,10 @@ function vibeSection(result: Result, w: number): string[] {
   return out;
 }
 
-/** STANDARDS: OWASP Top 10 grid, then one line each for API Top 10, LLM Top 10, CWE, and frameworks. */
+/** STANDARDS: OWASP Top 10 grid, then one line each for API Top 10, LLM Top 10, CWE, ATT&CK (and ATLAS when hit), and frameworks. */
 function standardsSection(result: Result, w: number): string[] {
   const s = result.standards;
-  const out = indent(heading("Standards", w, "OWASP · CWE · compliance mapping", "leads in source code"));
+  const out = indent(heading("Standards", w, "OWASP · CWE · MITRE · compliance mapping", "leads in source code"));
   const cellW = Math.floor((w - 2 - 4 * 2) / 5);
   for (let row = 0; row < 2; row++) {
     const cells = s.owasp_top10_2021.slice(row * 5, row * 5 + 5).map((r) => {
@@ -475,7 +476,10 @@ function standardsSection(result: Result, w: number): string[] {
     ? `${bold(num(s.cwe.length))} ${c.muted(`weakness${s.cwe.length === 1 ? "" : "es"} ·`)} ${bold(num(top25))} ${c.muted("in CWE Top 25 · top:")} ` +
       s.cwe.slice(0, 2).map((x) => `${x.id} ${c.muted(fit(x.name, 22))} ${c.high("×" + num(x.leads))}`).join(c.dim("  ·  "))
     : c.muted("no CWE-mapped leads"), w - 18)));
-  const FW_SHORT: Record<string, string> = { asvs: "ASVS", pci_dss: "PCI DSS", soc2: "SOC 2", iso27001: "ISO 27001", nist_ssdf: "NIST SSDF" };
+  const techs = (rows: typeof s.mitre_attack) => rows.filter((t) => t.leads).slice(0, 3).map((t) => `${bold(t.id)} ${c.muted(fit(t.name, 26))} ${c.high("×" + num(t.leads))}`).join(c.dim("  ·  ")) || c.muted("no leads");
+  out.push(line("ATT&CK", fitAnsi(techs(s.mitre_attack), w - 18)));
+  if (s.mitre_atlas.some((t) => t.leads)) out.push(line("ATLAS", fitAnsi(techs(s.mitre_atlas), w - 18)));
+  const FW_SHORT: Record<string, string> = { asvs: "ASVS", pci_dss: "PCI DSS", soc2: "SOC 2", iso27001: "ISO 27001", nist_ssdf: "NIST SSDF", nist_csf: "NIST CSF" };
   out.push(line("Frameworks", fitAnsi(s.frameworks.map((f) => `${FW_SHORT[f.id] ?? f.name} ${c.muted(f.requirements.slice(0, 1).map((r) => r.ref.split(" ")[0]).join(", ") || "–")}`).join(c.dim("  ·  ")), w - 18)));
   out.push(...wrap(s.note, w - 4).map((l) => " " + SUB + c.dim(l)));
   return out;
@@ -592,8 +596,8 @@ function ruleGroup(id: string, list: Finding[], width: number, maxRows: number):
   const fixW = width - 16 - 3;
   const fix = wrap(list[0].guidance, fixW).map((l, i) => " ".repeat(16) + (i ? "  " : c.ok("→ ")) + l);
   const st = list[0].standards;
-  const tags = st ? [st.owasp ? `OWASP ${st.owasp}` : "", ...st.owasp_api.map((a) => `OWASP ${a}`), ...st.owasp_llm.map((l) => `OWASP ${l}`), ...st.cwe].filter(Boolean) : [];
-  const stdLine = tags.length ? [" ".repeat(18) + c.dim(tags.join(" · "))] : [];
+  const tags = standardsLabels(st);
+  const stdLine = tags.length ? wrap(tags.join(" · "), width - 18).map((l) => " ".repeat(18) + c.dim(l)) : [];
   return [head, ...locationTree(id, list, width, maxRows), ...fix, ...stdLine];
 }
 
