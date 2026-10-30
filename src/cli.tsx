@@ -244,7 +244,8 @@ function capitalize(s: string): string {
   return s.charAt(0).toUpperCase() + s.slice(1);
 }
 
-main().then((code) => process.exit(code), (err) => {
+// Exit only after stdout has drained: process.exit() right after a large write to a pipe cuts it off at 64 KB.
+main().then((code) => process.stdout.write("", () => process.exit(code)), (err) => {
   process.stderr.write(`ERROR: ${(err as Error)?.stack ?? err}\n`);
   process.exit(2);
 });

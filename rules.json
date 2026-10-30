@@ -1,6 +1,6 @@
 {
  "generated_from": "saas-security-audit CLI (started from the plugin's scripts/scan.py 0.4.0; the CLI is now the source of truth)",
- "version": "0.6.0",
+ "version": "0.7.0",
  "schema_version": 3,
  "controls": [
   "Row-level security and tenant isolation",
@@ -1779,6 +1779,49 @@
      "exts": null
     }
    ]
+  },
+  {
+   "id": "SEC059",
+   "title": "Link or redirect built from the request Host header",
+   "severity": "Medium",
+   "confidence": "low",
+   "controls": [
+    8
+   ],
+   "scope": [
+    "code"
+   ],
+   "skip_comments": true,
+   "guidance": "The Host and X-Forwarded-Host headers are set by the client. Build links in emails (password reset, invites, magic links) and redirects from a configured base URL such as APP_URL, or validate the host against an allowlist.",
+   "patterns": [
+    {
+     "source": "^(?=[^\\n]*(?:://|\\b(?:url|link|origin|redirect|callback|reset|href|base_?url)))[^\\n]*(?:\\b(?:req|request)\\.headers\\.host\\b|\\b(?:req|request)\\.headers\\[\\s*[\\\"'](?:x-forwarded-)?host[\\\"']\\s*\\]|\\b(?:(?:req|request)(?:\\.headers)?|headers\\(\\)\\)?)\\.get\\(\\s*[\\\"'](?:x-forwarded-)?host[\\\"']\\s*\\)|\\brequest\\.(?:host_url|url_root)\\b|\\$_SERVER\\[\\s*[\\\"']HTTP_(?:X_FORWARDED_)?HOST[\\\"']\\s*\\])",
+     "flags": "i",
+     "exts": null
+    }
+   ]
+  },
+  {
+   "id": "SEC060",
+   "title": "Extra package index mixed with the public one (dependency confusion)",
+   "severity": "Medium",
+   "confidence": "medium",
+   "controls": [
+    15
+   ],
+   "scope": [
+    "code",
+    "config"
+   ],
+   "skip_comments": false,
+   "guidance": "With --extra-index-url pip picks the highest version from either index, so anyone who publishes your private package name on PyPI with a higher version wins. Use --index-url with a proxy that serves both, or pin private packages to their index and use --require-hashes.",
+   "patterns": [
+    {
+     "source": "^(?!\\s*#)(?:.*?[\\s\\\"'])?--extra-index-url\\b|^(?!\\s*#)\\s*extra[-_]index[-_]url\\s*=|\\bPIP_EXTRA_INDEX_URL\\b",
+     "flags": "i",
+     "exts": null
+    }
+   ]
   }
  ],
  "secret_formats": [
@@ -1944,6 +1987,22 @@
   },
   "prisma_global_models": {
    "source": "^(?:user|users|account|session|verificationtoken|authenticator|tenant|org|organization|workspace|team|company|plan|price|product|feature|migration|_\\w+)$",
+   "flags": "i"
+  },
+  "websocket_server_re": {
+   "source": "new\\s+(?:WebSocket\\.Server|WebSocketServer|WSServer)\\s*\\(|\\b(?:io|wss?|socketServer)\\.on\\(\\s*[\\\"']connection[\\\"']|@(?:app|router)\\.websocket\\(|@socketio\\.on\\(\\s*[\\\"']connect[\\\"']|\\bupgradeWebSocket\\s*\\(",
+   "flags": ""
+  },
+  "websocket_auth_re": {
+   "source": "verifyClient|handleUpgrade|\\bio\\.use\\(|\\.handshake\\.(?:auth|headers)|getServerSession|getSession|\\bauth\\(|jwt\\.verify|verify_?token|validate_?token|authenticate|\\bcookies?\\b|\\btoken\\b|\\borigin\\b|Depends\\(|current_user|request\\.user|\\bsession\\b",
+   "flags": "i"
+  },
+  "use_client_re": {
+   "source": "^\\s*[\\\"']use client[\\\"']",
+   "flags": ""
+  },
+  "client_system_prompt_re": {
+   "source": "\\brole\\s*:\\s*[\\\"']system[\\\"']|\\bsystem_?(?:prompt|message|instructions?)\\s*[:=]\\s*[`\\\"']|\\bsystemPrompt\\s*[:=]\\s*[`\\\"']|\\bsystem\\s*:\\s*[`\\\"'][^`\\\"'\\n]{20,}",
    "flags": "i"
   }
  },
@@ -2354,7 +2413,11 @@
   "SEC055": "Cloud resource open to the whole internet",
   "SEC056": "Database reachable or without real authentication",
   "SEC057": "CI workflow runs untrusted code or text with secrets",
-  "SEC058": "Privileged container or host access"
+  "SEC058": "Privileged container or host access",
+  "SEC059": "Link or redirect built from the request Host header",
+  "SEC060": "Extra package index mixed with the public one (dependency confusion)",
+  "SEC061": "WebSocket server without visible authentication or origin check",
+  "SEC062": "LLM system prompt shipped in client-side code"
  },
  "standards": {
   "SEC001": {
@@ -3353,6 +3416,82 @@
     "D3-EI",
     "D3-SCF"
    ]
+  },
+  "SEC059": {
+   "owasp": "A05",
+   "api": [
+    "API8"
+   ],
+   "llm": [],
+   "cwe": [
+    "CWE-640",
+    "CWE-20"
+   ],
+   "kind": "config",
+   "attack": [
+    "T1190"
+   ],
+   "atlas": [],
+   "d3fend": [
+    "D3-CV",
+    "D3-ACH"
+   ]
+  },
+  "SEC060": {
+   "owasp": "A08",
+   "api": [],
+   "llm": [],
+   "cwe": [
+    "CWE-427",
+    "CWE-829"
+   ],
+   "kind": "components",
+   "attack": [
+    "T1195.001"
+   ],
+   "atlas": [],
+   "d3fend": [
+    "D3-TL",
+    "D3-SWI"
+   ]
+  },
+  "SEC061": {
+   "owasp": "A01",
+   "api": [
+    "API2"
+   ],
+   "llm": [],
+   "cwe": [
+    "CWE-306",
+    "CWE-1385"
+   ],
+   "kind": "access",
+   "attack": [
+    "T1190"
+   ],
+   "atlas": [],
+   "d3fend": [
+    "D3-WSAM",
+    "D3-TBA"
+   ]
+  },
+  "SEC062": {
+   "owasp": "A04",
+   "api": [],
+   "llm": [
+    "LLM07"
+   ],
+   "cwe": [
+    "CWE-200"
+   ],
+   "kind": "ai",
+   "attack": [],
+   "atlas": [
+    "AML.T0069.002"
+   ],
+   "d3fend": [
+    "D3-CTS"
+   ]
   }
  },
  "owasp_top10": {
@@ -3434,7 +3573,11 @@
   "CWE-1395": "Dependency on Vulnerable Third-Party Component",
   "CWE-250": "Execution with Unnecessary Privileges",
   "CWE-829": "Inclusion of Functionality from Untrusted Control Sphere",
-  "CWE-1188": "Initialization of a Resource with an Insecure Default"
+  "CWE-1188": "Initialization of a Resource with an Insecure Default",
+  "CWE-640": "Weak Password Recovery Mechanism for Forgotten Password",
+  "CWE-20": "Improper Input Validation",
+  "CWE-427": "Uncontrolled Search Path Element",
+  "CWE-1385": "Missing Origin Validation in WebSockets"
  },
  "cwe_top25_2024": [
   "CWE-20",
@@ -3810,7 +3953,8 @@
    "rules": [
     "SEC040",
     "SEC044",
-    "SEC045"
+    "SEC045",
+    "SEC061"
    ]
   },
   {
@@ -3874,7 +4018,8 @@
    "title": "Untrusted text in prompts or run as code",
    "rules": [
     "SEC035",
-    "SEC036"
+    "SEC036",
+    "SEC062"
    ]
   },
   {
@@ -3918,7 +4063,8 @@
   "AML.T0050": "Command and Scripting Interpreter",
   "AML.T0051": "LLM Prompt Injection",
   "AML.T0053": "AI Agent Tool Invocation",
-  "AML.T0055": "Unsecured Credentials"
+  "AML.T0055": "Unsecured Credentials",
+  "AML.T0069.002": "System Prompt"
  },
  "d3fend_techniques": {
   "D3-AH": "Application Hardening",
@@ -4015,7 +4161,11 @@
   "SEC055": "From a machine outside your network, probe the port or resource (nc -vz <host> <port>, or the cloud console's public-access check). Only intended public endpoints should answer.",
   "SEC056": "From outside your network, try to connect to the database port; it should be unreachable. From inside, a connection without a password or IAM auth should be refused.",
   "SEC057": "Check which event triggers the workflow and whether it checks out pull request code or puts ${{ github.event.* }} inside run:. A fork pull request with a crafted title or code must not run with secrets or a write token.",
-  "SEC058": "Run docker inspect <container> (or read the pod spec) for Privileged, host PID or network, and mounts of /var/run/docker.sock or host paths. None should be set unless the workload truly needs it."
+  "SEC058": "Run docker inspect <container> (or read the pod spec) for Privileged, host PID or network, and mounts of /var/run/docker.sock or host paths. None should be set unless the workload truly needs it.",
+  "SEC059": "On staging, request a password reset (or invite) with curl -H 'Host: evil.example' (and again with X-Forwarded-Host: evil.example). The link in the email must still point at your real domain.",
+  "SEC060": "Check whether every private package name is also registered on PyPI by you (pip download <name> --no-deps --index-url https://pypi.org/simple). If the name is free, switch to a single --index-url before someone claims it.",
+  "SEC061": "Connect with no cookie or token from another origin: npx wscat -c wss://<host>/<path> -H 'Origin: https://evil.example'. The handshake should be refused, or the socket closed before it sends any data.",
+  "SEC062": "Open the deployed page, then search the JavaScript bundles (DevTools > Sources > search) for a phrase from the system prompt. If it is there, every visitor can read it; move the prompt to a server route."
  },
  "verify_note": "Run these checks only against systems you own or are authorized to test, preferably a staging copy with test accounts."
 }

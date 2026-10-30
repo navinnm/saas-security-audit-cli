@@ -233,3 +233,12 @@ test("every rule has a manual verify step, shown in Markdown, HTML, PDF plan and
     assert.match(show, /✓ Verify: On staging, put a single quote/);
   });
 });
+
+test("JSON piped to another process is complete, not cut at 64 KB", async () => {
+  const files = Object.fromEntries(Array.from({ length: 300 }, (_, i) => [`src/q${i}.js`, "db.query(`SELECT * FROM t WHERE id = ${req.query.id}`);\n"]));
+  await withResult(files, (_result, root) => {
+    const r = spawnSync("sh", ["-c", `node "${CLI}" "${root}" --json --no-update-check | cat`], { encoding: "utf8", maxBuffer: 64 * 1024 * 1024 });
+    assert.ok(r.stdout.length > 65536, `only ${r.stdout.length} bytes`);
+    assert.ok(JSON.parse(r.stdout).findings.length >= 300);
+  });
+});

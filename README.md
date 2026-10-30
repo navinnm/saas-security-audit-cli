@@ -45,6 +45,7 @@ For JavaScript and TypeScript it also **reads the code as code**, not line by li
 | Kubernetes `privileged: true`, `hostNetwork`, `runAsUser: 0`, a committed `kind: Secret` | Kubernetes |
 | `pull_request_target` that checks out the PR's code, `${{ github.event.pull_request.title }}` in `run:`, unpinned third-party actions | CI supply chain |
 | Terraform security group `0.0.0.0/0` on 5432/22, `publicly_accessible = true`, unencrypted RDS; `pg_hba.conf` trust, open `mongod.conf` / `redis.conf` | Cloud & database config |
+| `pip install --extra-index-url https://pkgs.internal/simple` in `requirements.txt`, a Dockerfile or CI | Dependency confusion |
 | `next@14.1.0`: CVE-2025-29927, fixed in 14.2.25 · `Django==3.2.0`: 38 CVEs · `laravel/framework` v8 · `gin` 1.6.0 · Go 1.20 standard library | Vulnerable and outdated dependencies (OSV.dev) |
 | Supabase `service_role` key in a `NEXT_PUBLIC_` env variable | Secrets |
 | `create table public.invoices` with no `ENABLE ROW LEVEL SECURITY` | Tenant isolation / RLS |
@@ -54,8 +55,10 @@ For JavaScript and TypeScript it also **reads the code as code**, not line by li
 | `` db.query(`SELECT … ${id}`) ``, `"SELECT …" + id`, `f"SELECT … {id}"` | SQL injection |
 | `cors({ origin: true, credentials: true })`, `rejectUnauthorized: false` | CORS / TLS |
 | `requests.get(request.args["url"])` | SSRF |
+| `` `https://${req.headers.get("host")}/reset?token=…` ``, `"http://".$_SERVER['HTTP_HOST']` | Host header poisoning (reset links) |
+| `new WebSocketServer({ port })` / `io.on("connection")` with no session, token or `Origin` check | WebSocket auth |
 | `jwt.verify(token, secret)` with no algorithm pin, `expiresIn: "365d"` | JWT sessions |
-| `` systemPrompt = `…${req.body.notes}` ``, model output passed to `db.query()` | AI / LLM |
+| `` systemPrompt = `…${req.body.notes}` ``, model output passed to `db.query()`, a system prompt inside a `"use client"` component | AI / LLM |
 | Live `sk_live_` / AWS keys in `.env.production`, env files not in `.gitignore` | Secret exposure |
 | `if (user.role === 'admin')` only in the UI, tokens in `localStorage`, `// TODO: add auth` | Vibe-code review |
 | `new OpenAI({ dangerouslyAllowBrowser: true })`, Stripe secret key in browser code | Secrets in the frontend |

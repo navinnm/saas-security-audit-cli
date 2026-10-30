@@ -1,6 +1,6 @@
 {
   "name": "saas-security-audit",
-  "version": "0.9.0",
+  "version": "0.10.0",
   "description": "SaaS security scanner CLI: finds tenant isolation gaps, IDOR/BOLA, missing Supabase RLS, leaked secrets, SQL injection, CORS and webhook flaws. Traces routes, server actions and request data in JS/TS, checks dependencies for known CVEs (OSV.dev). Maps evidence to 22 controls. Read-only; your code never leaves the machine.",
   "type": "module",
   "bin": {

@@ -215,6 +215,7 @@ export function classify(name: string, suffix: string): string | null {
   if (name === ".env" || name.startsWith(".env.") || name.endsWith(".env")) return "env";
   if (CODE_EXTS.has(suffix)) return "code";
   if (CONFIG_EXTS.has(suffix) || CONFIG_NAMES.has(name) || name.startsWith("Dockerfile")) return "config";
+  if (/^(?:requirements|constraints)[\w.-]*\.txt$/i.test(name)) return "config"; // pip options such as --extra-index-url
   if (SQL_EXTS.has(suffix)) return "sql";
   if (DOC_EXTS.has(suffix)) return "doc";
   return null;
@@ -347,6 +348,8 @@ export async function scan(root: string, state: ScanState = newState(), ev: Scan
   const ignorePats = parseGitignore(root);
   const schemaFiles: [string, string, string[], boolean][] = [];
   const webhookFiles: [string, number, boolean, boolean][] = [];
+  const socketFiles: [string, number][] = [];   // WebSocket servers with no auth or origin check in the file (SEC061)
+  const promptFiles: [string, number][] = [];   // client-side files that hold an LLM system prompt (SEC062)
   /** JS/TS application source for the code-flow analysis (flow.ts). */
   const flowFiles: (FlowFile & { lines: string[] })[] = [];
   const supabase = isDir(join(root, "supabase"));
@@ -450,6 +453,14 @@ export async function scan(root: string, state: ScanState = newState(), ev: Scan
       const text = lines.join("\n");
       webhookFiles.push([rel, firstWebhookLine, RE.webhookVerify.test(text), RE.webhookIdempotency.test(text)]);
     }
+    if (category === "code" && !inTest) {
+      const at = (re: RegExp) => lines.findIndex((l) => re.test(l) && !COMMENT_PREFIXES.some((p) => pyLstrip(l).startsWith(p)));
+      const socket = at(RE.websocketServer);
+      if (socket >= 0 && !RE.websocketAuth.test(lines.join("\n"))) socketFiles.push([rel, socket + 1]);
+      const client = ext === ".vue" || ext === ".svelte" || lines.slice(0, 5).some((l) => RE.useClient.test(l));
+      const prompt = client ? at(RE.clientSystemPrompt) : -1;
+      if (prompt >= 0) promptFiles.push([rel, prompt + 1]);
+    }
   }
 
   ev.onPhase?.("analyze");
@@ -508,6 +519,19 @@ export async function scan(root: string, state: ScanState = newState(), ev: Scan
         rel, number, "Signature check found; no event-ID deduplication found in this file",
         "Persist processed event IDs (unique constraint) so retries and replays cannot apply side effects twice.", "source"));
     }
+  }
+  for (const [rel, number] of socketFiles) {
+    emit(makeFinding("SEC061", "WebSocket server without visible authentication or origin check", "Medium", "low", [2],
+      rel, number, "No session, token or Origin check found in this file",
+      "Authenticate the handshake (session cookie or token, checked in verifyClient, an upgrade handler or io.use) and " +
+      "reject unexpected Origin headers; browsers send cookies on cross-site WebSocket connections. " +
+      "The check may live in shared middleware; confirm before reporting.", "source"));
+  }
+  for (const [rel, number] of promptFiles) {
+    emit(makeFinding("SEC062", "LLM system prompt shipped in client-side code", "Medium", "medium", [22],
+      rel, number, "System prompt defined in a client component",
+      "Everything in a client component ends up in the browser bundle, so any visitor can read the prompt and any " +
+      "rules or data in it. Keep the prompt on the server and send only the user's message from the client.", "source"));
   }
   for (const env of state.env_files) {
     if (!env.gitignored && !env.example) {

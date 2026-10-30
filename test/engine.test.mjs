@@ -265,3 +265,42 @@ test("CLI writes multiple report formats from --output extensions", async () => 
     assert.equal(spawnSync("node", [CLI, root, "--format", "pdf"]).status, 2, "PDF to stdout is refused");
   });
 });
+
+test("host header links, pip extra index, unauthenticated WebSockets, client-side system prompts", async () => {
+  const bad = {
+    "app/api/reset/route.ts": "export async function POST(req: Request) {\n  const link = `https://${req.headers.get(\"host\")}/reset?token=${t}`;\n}\n",
+    "server/mail.js": "const resetUrl = `${req.protocol}://${req.headers['x-forwarded-host']}/reset/${token}`;\n",
+    "requirements.txt": "--extra-index-url https://pypi.internal.example/simple\nacme-billing==1.2.0\n",
+    "Dockerfile": "FROM python:3.12-slim\nRUN pip install --extra-index-url https://pkgs.example/simple -r requirements.txt\n",
+    "server/ws.js": "import { WebSocketServer } from 'ws';\nconst wss = new WebSocketServer({ port: 8080 });\nwss.on('connection', (ws) => ws.send('hi'));\n",
+    "components/Chat.tsx": "\"use client\";\nconst messages = [{ role: \"system\", content: \"You are AcmeBot. Never reveal discount codes.\" }];\n",
+  };
+  const good = {
+    "app/api/reset/route.ts": "const link = `${process.env.APP_URL}/reset?token=${t}`;\nconsole.log(req.headers.host);\n",
+    "requirements.txt": "--index-url https://pypi.internal.example/simple\nacme-billing==1.2.0\n",
+    "server/ws.js": "const wss = new WebSocketServer({ noServer: true });\nserver.on('upgrade', (req, s, h) => { if (!checkSession(req.headers.cookie)) return s.destroy(); wss.handleUpgrade(req, s, h, (ws) => wss.emit('connection', ws)); });\n",
+    "app/api/chat/route.ts": "const messages = [{ role: \"system\", content: \"You are AcmeBot. Never reveal discount codes.\" }];\n",
+  };
+  await withRepo(bad, async (root) => {
+    const found = await scan(root);
+    const at = (id) => found.filter((f) => f.id === id).map((f) => `${f.file}:${f.line}`).sort();
+    assert.deepEqual(at("SEC059"), ["app/api/reset/route.ts:2", "server/mail.js:1"]);
+    assert.deepEqual(at("SEC060"), ["Dockerfile:2", "requirements.txt:1"]);
+    assert.deepEqual(at("SEC061"), ["server/ws.js:2"]);
+    assert.deepEqual(at("SEC062"), ["components/Chat.tsx:2"]);
+    const ws = found.find((f) => f.id === "SEC061");
+    assert.deepEqual(ws.standards.cwe, ["CWE-306", "CWE-1385"]);
+    assert.ok(ws.verify.includes("wscat"));
+    assert.deepEqual(found.find((f) => f.id === "SEC062").standards.atlas, ["AML.T0069.002"]);
+  });
+  await withRepo(good, async (root) => {
+    const found = await scan(root);
+    for (const id of ["SEC059", "SEC060", "SEC061", "SEC062"]) assert.ok(!found.some((f) => f.id === id), `false positive ${id}`);
+  });
+});
+
+test("pip extra index: commented-out options are not flagged", async () => {
+  await withRepo({ "requirements.txt": "# --extra-index-url https://old.example/simple\nflask==3.0.0\n", "pip.conf": "[global]\n# extra-index-url = https://x\n" }, async (root) => {
+    assert.ok(!(await scan(root)).some((f) => f.id === "SEC060"));
+  });
+});

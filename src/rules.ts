@@ -115,6 +115,10 @@ export const RE = {
   prismaModel: rx(g.prisma_model_re),
   tenantField: rx(g.tenant_field_re),
   prismaGlobal: rx(g.prisma_global_models),
+  websocketServer: rx(g.websocket_server_re),
+  websocketAuth: rx(g.websocket_auth_re),
+  useClient: rx(g.use_client_re),
+  clientSystemPrompt: rx(g.client_system_prompt_re),
 };
 
 export const CONTROL_SIGNALS: [number, RegExp][] = Object.entries(raw.control_signals).map(([k, v]) => [Number(k), rx(v)]);
