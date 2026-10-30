@@ -52,6 +52,8 @@ interface RawRules {
   standards_note: string;
   vibe_checks: { id: string; title: string; rules: string[] }[];
   secret_guidance: Record<string, string>;
+  verify: Record<string, string>;
+  verify_note: string;
 }
 
 const raw: RawRules = JSON.parse(readFileSync(new URL("../rules.json", import.meta.url), "utf8"));

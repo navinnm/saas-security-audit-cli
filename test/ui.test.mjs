@@ -216,3 +216,20 @@ test("MITRE ATT&CK, ATLAS, D3FEND and NIST CSF mappings, and the Navigator layer
     assert.ok(miss && miss.color && /no leads/.test(miss.comment));
   });
 });
+
+test("every rule has a manual verify step, shown in Markdown, HTML, PDF plan and show <rule>", async () => {
+  const { renderHtml } = await import("../dist/html.js");
+  const { markdown } = await import("../dist/report.js");
+  const { R } = await import("../dist/rules.js");
+  for (const rid of Object.keys(R.standards)) assert.ok(R.verify[rid]?.length > 40, `${rid} has no verify step`);
+  await withResult({ ...FIXTURES.vulnerableSaas, ...FIXTURES.vibeCoded }, (result) => {
+    assert.ok(result.findings.every((f) => f.verify === R.verify[f.id]));
+    const md = markdown(result);
+    assert.ok(md.includes(`Verify: ${R.verify.SEC003}`));
+    assert.ok(md.includes(R.verify_note));
+    const html = renderHtml(result);
+    assert.ok(html.includes('<div class="verify"><b>Verify:</b>'));
+    const show = plain(showRule("SEC003", result.findings, 100).join("\n"));
+    assert.match(show, /✓ Verify: On staging, put a single quote/);
+  });
+});

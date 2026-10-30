@@ -7,7 +7,7 @@ import type { Finding } from "../engine.js";
 import type { Result } from "../report.js";
 import { standardsLabels } from "../standards.js";
 import { topFolder, type Profile } from "../profile.js";
-import { RULE_TITLES, SEVERITY_RANK } from "../rules.js";
+import { R, RULE_TITLES, SEVERITY_RANK } from "../rules.js";
 import {
   areas, buildView, CONTROL_SHORT, fixPlan, pathRole, RULE_SHORT, verdict, whereWorst, type Verdict, type View,
 } from "../view.js";
@@ -724,6 +724,11 @@ export function showRule(id: string, findings: Finding[], width: number): string
   }
   out.push("");
   wrap(list[0].guidance, w - 6).forEach((l, k) => out.push(`  ${k ? " " : c.ok("→")} ${l}`));
+  if (list[0].verify) {
+    out.push("");
+    wrap(`Verify: ${list[0].verify}`, w - 6).forEach((l, k) => out.push(`  ${k ? " " : c.ok("✓")} ${l}`));
+    out.push(...wrap(R.verify_note, w - 6).map((l) => `    ${c.dim(l)}`));
+  }
   out.push(`  ${c.muted(`Controls: ${list[0].controls.map((n) => `C${n} ${CONTROL_SHORT[n - 1]}`).join(", ")} · confidence ${list[0].confidence}`)}`, "");
   return out;
 }

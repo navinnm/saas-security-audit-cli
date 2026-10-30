@@ -153,7 +153,7 @@ export function markdown(result: Result): string {
     : `Test files and gitignored local env files were not read (\`--include-tests\` reads them). Suppressed inline: ${stats.suppressed}.`, "");
   if (!findings.length) out.push("No heuristic matches detected. This does **not** mean the project is secure.", "");
   else {
-    out.push("## Leads by control", "");
+    out.push("## Leads by control", "", `Each rule has a manual **Verify** step that confirms or rules out its leads. ${R.verify_note}`, "");
     CONTROLS.forEach((name, i) => {
       const group = findings.filter((f) => f.controls[0] === i + 1);
       if (!group.length) return;
@@ -165,7 +165,7 @@ export function markdown(result: Result): string {
         const also = first.controls.slice(1).map((c) => `C${c}`);
         const heading = RULE_TITLES[rid] ?? first.title;
         out.push(`**${rid} — ${heading}** · confidence ${first.confidence}` + (also.length ? ` · also ${also.join(", ")}` : ""), "",
-          `Guidance: ${first.guidance}`, "");
+          `Guidance: ${first.guidance}`, "", ...(first.verify ? [`Verify: ${first.verify}`, ""] : []));
         for (const f of items) {
           const ctx = f.context === "source" ? "" : ` _(${f.context})_`;
           const label = f.title !== heading ? ` ${f.title}` : "";

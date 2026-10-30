@@ -6,6 +6,7 @@
 import type { Finding } from "./engine.js";
 import type { Result } from "./report.js";
 import { standardsLabels, type TechniqueRow } from "./standards.js";
+import { R } from "./rules.js";
 import { CLI_VERSION as VERSION } from "./version.js";
 import { buildView, controlLabel, formatDate, SEVERITY_ORDER, type CoverageRow, type View } from "./view.js";
 
@@ -109,7 +110,7 @@ export function renderHtml(result: Result, opts: { includeTests?: boolean; now?:
     ...v.coverage.noSignals.map((r) => [r, "none"] as const),
     ...v.coverage.notVerified.map((r) => [r, "unverified"] as const),
   ]).sort((x, y) => x[0].id - y[0].id).map(([r, st]) => coverageRow(r, st)).join("\n");
-  const plan = v.guidance.map((g, i) => `<tr><td class="ref">${i + 1}</td><td><div class="title">${esc(g.title)}</div><div class="muted">${esc(g.guidance)}</div></td>
+  const plan = v.guidance.map((g, i) => `<tr><td class="ref">${i + 1}</td><td><div class="title">${esc(g.title)}</div><div class="muted">${esc(g.guidance)}</div>${g.verify ? `<div class="verify"><b>Verify:</b> ${esc(g.verify)}</div>` : ""}</td>
 <td class="rule">${esc(g.id)}</td><td class="num">${g.count}</td></tr>`).join("");
   const tools = inv.recommended_tools.map((t) => `<tr><td><code>${esc(t.command)}</code></td><td>${esc(t.purpose)}</td>
 <td>${t.installed ? "Installed" : `<span class="muted">Not installed</span>`}</td><td class="muted">${t.needs_network ? "Needs network" : "Offline"}</td></tr>`).join("");
@@ -153,7 +154,7 @@ table{width:100%;border-collapse:collapse;font-size:13px}
 th{text-align:left;font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;padding:8px 10px;border-bottom:1px solid var(--rule2);background:var(--shade)}
 td{padding:9px 10px;border-bottom:1px solid var(--rule);vertical-align:top}
 .num{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
-.muted{color:var(--muted)}.small{font-size:12px}.strong{color:var(--ink);font-weight:600}
+.muted{color:var(--muted)}.verify{margin-top:4px;font-size:12px;color:var(--muted)}.verify b{color:var(--ink);font-weight:600}.small{font-size:12px}.strong{color:var(--ink);font-weight:600}
 .sev{display:inline-flex;align-items:center;gap:7px;color:var(--c);font-weight:600;font-size:12.5px;white-space:nowrap}
 .sev i{width:9px;height:9px;background:var(--c);display:inline-block}
 .sev.crit{--c:var(--crit)}.sev.high{--c:var(--high)}.sev.med{--c:var(--med)}.sev.low{--c:var(--low)}.sev.info{--c:var(--info)}
@@ -232,7 +233,7 @@ ${findingsTable(v.hidden, true, "test-findings")}` : ""}
 </section>
 
 ${v.guidance.length ? `<section><h2><span>${no()}</span>Remediation plan</h2>
-<p class="lede">One action per rule, most severe first.</p>
+<p class="lede">One action per rule, most severe first, with a manual check that confirms or rules out the lead. ${esc(R.verify_note)}</p>
 <table><thead><tr><th>#</th><th>Action</th><th>Rule</th><th class="num">Findings</th></tr></thead><tbody>${plan}</tbody></table></section>` : ""}
 
 <section><h2><span>${no()}</span>Control coverage</h2>

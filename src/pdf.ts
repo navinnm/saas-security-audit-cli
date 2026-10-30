@@ -6,6 +6,7 @@ import { deflateSync } from "node:zlib";
 import type { Finding } from "./engine.js";
 import type { Result } from "./report.js";
 import { standardsLabels } from "./standards.js";
+import { R } from "./rules.js";
 import { CLI_VERSION as VERSION } from "./version.js";
 import { buildView, CONTROL_SHORT, formatDate, SEVERITY_ORDER, type CoverageRow } from "./view.js";
 
@@ -478,7 +479,7 @@ export function renderPdf(result: Result, opts: { includeTests?: boolean; now?: 
 
   // 3 Remediation plan
   if (v.guidance.length) {
-    L.heading("Remediation plan", "One action per rule, most severe first.");
+    L.heading("Remediation plan", `One action per rule, most severe first, with a manual check that confirms or rules out the lead. ${R.verify_note}`);
     const cols = { no: M + 6, act: M + 30, rule: M + CW - 100, n: M + CW - 6 };
     const header = L.tableHeader([["#", cols.no], ["Action", cols.act], ["Rule", cols.rule], ["Findings", cols.n, "right"]]);
     header();
@@ -486,12 +487,14 @@ export function renderPdf(result: Result, opts: { includeTests?: boolean; now?: 
     v.guidance.forEach((g, i) => {
       const lines = wrap(g.guidance, "F1", 8, cols.rule - cols.act - 12);
       const tl = wrap(g.title, "F2", 8.5, cols.rule - cols.act - 12, 2);
-      const h = tl.length * 11 + lines.length * 10.5 + 10;
+      const vl = g.verify ? wrap(`Verify: ${g.verify}`, "F1", 7.5, cols.rule - cols.act - 12) : [];
+      const h = tl.length * 11 + lines.length * 10.5 + (vl.length ? vl.length * 10 + 3 : 0) + 10;
       L.ensure(h);
       const b = L.y + 10;
       d.text(cols.no, b, String(i + 1), "F1", 8, C.muted);
       tl.forEach((l, k) => d.text(cols.act, b + k * 11, l, "F2", 8.5, C.ink));
       lines.forEach((l, k) => d.text(cols.act, b + tl.length * 11 + k * 10.5, l, "F1", 8, C.body));
+      vl.forEach((l, k) => d.text(cols.act, b + tl.length * 11 + lines.length * 10.5 + 3 + k * 10, l, "F1", 7.5, C.muted));
       d.text(cols.rule, b, g.id, "F3", 7.5, C.muted);
       d.textRight(cols.n, b, String(g.count), "F1", 8.5, C.ink);
       L.y += h;

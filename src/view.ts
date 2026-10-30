@@ -30,7 +30,7 @@ export interface View {
   stack: string[];
   posture: { level: "critical" | "high" | "medium" | "low"; headline: string; detail: string };
   controlsWithLeads: number;
-  guidance: { id: string; title: string; guidance: string; count: number }[];
+  guidance: { id: string; title: string; guidance: string; verify: string; count: number }[];
   coverage: { leads: CoverageRow[]; noSignals: CoverageRow[]; notVerified: CoverageRow[] };
 }
 
@@ -70,7 +70,7 @@ export function buildView(result: Result, includeTests = false, now = new Date()
   for (const f of shown) {
     const g = guidanceMap.get(f.id);
     if (g) g.count++;
-    else guidanceMap.set(f.id, { id: f.id, title: RULE_TITLES[f.id] ?? f.title, guidance: f.guidance, count: 1 });
+    else guidanceMap.set(f.id, { id: f.id, title: RULE_TITLES[f.id] ?? f.title, guidance: f.guidance, verify: f.verify ?? "", count: 1 });
   }
   const guidance = [...guidanceMap.values()].sort((a, b) => {
     const worst = (id: string) => Math.max(...shown.filter((f) => f.id === id).map((f) => SEVERITY_RANK[f.severity]));

@@ -18,6 +18,8 @@ export interface Finding {
   id: string; title: string; severity: string; confidence: string; controls: number[];
   status: string; file: string; line: number; evidence: string; guidance: string; context: string;
   fingerprint: string; suppressed?: string; standards?: FindingStandards;
+  /** A manual check that confirms or rules out the lead (rules.json `verify`). */
+  verify?: string;
 }
 
 export interface Signal { source: string[]; source_count: number; test_count: number }
@@ -199,7 +201,7 @@ export function fingerprint(f: Pick<Finding, "id" | "file" | "evidence">): strin
 export function makeFinding(id: string, title: string, severity: string, confidence: string, controls: number[],
   file: string, line: number, evidence: string, guidance: string, context: string): Finding {
   const f = { id, title, severity, confidence, controls: [...controls], status: "NEEDS_REVIEW", file, line, evidence, guidance, context,
-    standards: standardsFor(id) } as Finding;
+    standards: standardsFor(id), ...(R.verify[id] ? { verify: R.verify[id] } : {}) } as Finding;
   f.fingerprint = fingerprint(f);
   return f;
 }
